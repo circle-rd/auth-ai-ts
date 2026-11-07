@@ -19,14 +19,17 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 - **UserInfo enrichment**: after the code exchange and during server-managed session renewals, the SDK calls the
   provider's `userinfo_endpoint` and fills claims the ID token omits (`email`, `email_verified`
   and the standard profile claims). The UserInfo `sub` is checked against the ID token before
-  any claim is merged; claims already present in the ID token are never replaced.
+  any claim is merged; claims already present in the ID token are never replaced. Sign-in and
+  server-managed session renewal now fail with `OIDC_003` when the UserInfo endpoint is
+  unreachable, returns an error, or answers an invalid body, so treat it as a sign-in dependency.
 
 ### Changed
 
 - **RP-initiated logout state**: `POST /auth/logout` now generates a `state`, sends it to the
   provider's `end_session_endpoint`, and the new `<basePath>/logout/callback` route accepts the
-  provider's redirect even when the state is missing or different. The reference app registers
-  `<origin>/auth/logout/callback` as its post-logout URI.
+  provider's redirect even when the state is missing or different. Applications must set
+  `postLogoutRedirectUri` to `<origin><basePath>/logout/callback` and register the same absolute
+  URI with the provider; the reference app and quick-start now do so.
 
 ## [0.2.0] - 2026-11-04
 
