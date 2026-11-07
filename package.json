@@ -100,7 +100,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "example:build": "tsc -p examples/minimal/tsconfig.json && esbuild examples/minimal/web/app.ts --bundle --format=esm --target=es2022 --minify --outfile=examples/minimal/dist/public/app.js && cp examples/minimal/web/index.html examples/minimal/web/style.css examples/minimal/dist/public/"
+    "example:build": "tsc -p examples/minimal/tsconfig.json && esbuild examples/minimal/web/app.ts --bundle --format=esm --target=es2022 --minify --outfile=examples/minimal/dist/public/app.js && cp examples/minimal/web/index.html examples/minimal/web/style.css examples/minimal/dist/public/",
+    "example:certification:build": "tsc -p examples/certification/tsconfig.json"
   },
   "peerDependencies": {
     "fastify": ">=5.12.6",

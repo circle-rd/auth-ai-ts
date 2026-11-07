@@ -1,3 +1,5 @@
+import { decodeProtectedHeader } from "jose";
+import type { JWTPayload } from "jose";
 import type { AuthClient } from "../client.js";
 import { ERR } from "../errors.js";
 
@@ -49,11 +51,25 @@ export async function verifyLogoutToken(
   auth: LogoutAuth,
   token: string,
   replayStore: ReplayStore,
+  allowMissingTyp = false,
 ): Promise<LogoutTokenClaims> {
-  const payload = await auth.verifyJwt(token, {
-    audience: auth.config.clientId,
-    typ: LOGOUT_TOKEN_TYP,
-  });
+  let payload: JWTPayload;
+  if (allowMissingTyp) {
+    const typ = decodeProtectedHeader(token).typ;
+    if (
+      typ !== undefined &&
+      typ !== LOGOUT_TOKEN_TYP &&
+      typ !== `application/${LOGOUT_TOKEN_TYP}`
+    ) {
+      throw ERR.TOK_001("The logout token has an unexpected typ header");
+    }
+    payload = await auth.verifyJwt(token, { audience: auth.config.clientId });
+  } else {
+    payload = await auth.verifyJwt(token, {
+      audience: auth.config.clientId,
+      typ: LOGOUT_TOKEN_TYP,
+    });
+  }
 
   const { events, nonce, jti, sid, sub, iat, exp } = payload;
   const hasEvent =
@@ -94,6 +110,8 @@ export interface BackchannelLogoutHandlerOptions {
   readonly auth: LogoutAuth;
   readonly onLogout: (event: BackchannelLogoutEvent) => Promise<void> | void;
   readonly replayStore?: ReplayStore;
+  /** Accept missing `typ` only for providers with a known non-conforming logout-token implementation. */
+  readonly allowMissingTyp?: boolean;
   /** Receives every rejected token and failed callback: the response carries no detail. */
   readonly onError?: (error: unknown) => void;
 }
@@ -141,7 +159,12 @@ export function createBackchannelLogoutHandler(
 
     let claims: LogoutTokenClaims;
     try {
-      claims = await verifyLogoutToken(options.auth, token, replayStore);
+      claims = await verifyLogoutToken(
+        options.auth,
+        token,
+        replayStore,
+        options.allowMissingTyp,
+      );
     } catch (err) {
       options.onError?.(err);
       return jsonError(400, "invalid_request");
@@ -153,6 +176,6 @@ export function createBackchannelLogoutHandler(
       options.onError?.(err);
       return jsonError(500, "server_error");
     }
-    return new Response(null, { status: 204, headers: NO_STORE });
+    return new Response(null, { status: 200, headers: NO_STORE });
   };
 }

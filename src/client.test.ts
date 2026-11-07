@@ -154,6 +154,31 @@ describe("handleCallback", () => {
     ]).toEqual([CLIENT_ID, CLIENT_SECRET]);
   });
 
+  it("refreshes the JWKS and accepts a unique key when the ID token omits kid", async () => {
+    const first = await auth.startLogin();
+    await respondWithTokens(first.handshake);
+    await auth.handleCallback(callbackUrl(first.handshake), first.handshake);
+    expect(idp.requestsTo("/jwks")).toHaveLength(1);
+
+    const second = await auth.startLogin();
+    const idToken = await idp.idToken(
+      { nonce: second.handshake.nonce },
+      { kid: null },
+    );
+    idp.tokenHandler = () =>
+      jsonResponse({
+        access_token: "access-2",
+        token_type: "Bearer",
+        expires_in: 3600,
+        id_token: idToken,
+      });
+
+    await expect(
+      auth.handleCallback(callbackUrl(second.handshake), second.handshake),
+    ).resolves.toMatchObject({ claims: { sub: "user-1" } });
+    expect(idp.requestsTo("/jwks")).toHaveLength(2);
+  });
+
   it("rejects a callback carrying another state", async () => {
     const { handshake } = await auth.startLogin();
     await respondWithTokens(handshake);
@@ -250,7 +275,7 @@ describe("handleCallback", () => {
     );
   });
 
-  it("rejects a token response without expires_in", async () => {
+  it("uses a conservative expiry when the token response omits expires_in", async () => {
     const { handshake } = await auth.startLogin();
     const idToken = await idp.idToken({ nonce: handshake.nonce });
     idp.tokenHandler = () =>
@@ -259,9 +284,12 @@ describe("handleCallback", () => {
         token_type: "Bearer",
         id_token: idToken,
       });
-    await expectAuthAiError(
-      auth.handleCallback(callbackUrl(handshake), handshake),
-      "OIDC_003",
+
+    const result = await auth.handleCallback(callbackUrl(handshake), handshake);
+
+    expect(result.tokens.expiresAt).toBeGreaterThan(Date.now() / 1000);
+    expect(result.tokens.expiresAt).toBeLessThanOrEqual(
+      Math.floor(Date.now() / 1000) + 300,
     );
   });
 

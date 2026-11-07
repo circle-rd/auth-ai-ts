@@ -168,7 +168,7 @@ describe("routes", () => {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       payload: new URLSearchParams({ logout_token: token }).toString(),
     });
-    expect(response.statusCode).toBe(204);
+    expect(response.statusCode).toBe(200);
     expect(response.body).toBe("");
     expect(
       (

@@ -25,11 +25,21 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ### Changed
 
+- Path-based issuer identifiers, including their required trailing slash, are now accepted and
+  still compared verbatim with the discovery document and token `iss` claim. Token responses
+  without the optional `expires_in` use a conservative five-minute local expiry. JWKS refreshes
+  immediately on a previously unknown key, with a short cooldown to bound refresh requests.
+- ID tokens and logout tokens are verified using the provider's selected signing algorithm.
+  Back-channel logout success returns HTTP 200.
+
 - **RP-initiated logout state**: `POST /auth/logout` now generates a `state`, sends it to the
   provider's `end_session_endpoint`, and the new `<basePath>/logout/callback` route accepts the
   provider's redirect even when the state is missing or different. Applications must set
   `postLogoutRedirectUri` to `<origin><basePath>/logout/callback` and register the same absolute
   URI with the provider; the reference app and quick-start now do so.
+- `createBackchannelLogoutHandler` and `AuthHandlers` accept an opt-in
+  `allowMissingTyp` / `allowMissingLogoutTokenTyp` setting for known non-conforming providers.
+  The default remains strict: a missing or incorrect logout-token `typ` is rejected.
 
 ## [0.2.0] - 2026-11-04
 

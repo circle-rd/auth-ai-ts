@@ -856,7 +856,7 @@ describe("back-channel logout", () => {
     const cookie = await signIn();
     const response = await mustHandle(postLogoutToken(await logoutToken()));
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
     expect(await sessions.countByUser("user-1")).toBe(0);
     expect(await grants.has("user-1")).toBe(false);
     expect(onSessionsEnded).toHaveBeenCalledOnce();
@@ -867,14 +867,14 @@ describe("back-channel logout", () => {
     const response = await mustHandle(
       postLogoutToken(await logoutToken({ sid: "unknown" })),
     );
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
     expect(onSessionsEnded).not.toHaveBeenCalled();
   });
 
   it("refuses a replayed token", async () => {
     await signIn();
     const token = await logoutToken();
-    expect((await mustHandle(postLogoutToken(token))).status).toBe(204);
+    expect((await mustHandle(postLogoutToken(token))).status).toBe(200);
     expect((await mustHandle(postLogoutToken(token))).status).toBe(400);
   });
 
