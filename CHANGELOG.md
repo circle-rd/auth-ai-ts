@@ -12,7 +12,7 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-11-07
+## [0.3.0] - 2026-11-07
 
 ### Added
 
@@ -113,7 +113,9 @@ First release.
 - `__Host-` cookies, same-origin redirect targets, refused cross-site logout, URLs built
   on the registered origin, Fastify >= 5.12.6 required.
 
-[Unreleased]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/circle-rd/auth-ai-ts/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/circle-rd/auth-ai-ts/releases/tag/v0.1.0
