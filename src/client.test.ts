@@ -430,6 +430,41 @@ describe("verifyIdToken", () => {
   });
 });
 
+describe("fetchUserInfo", () => {
+  it("returns the standard claims", async () => {
+    idp.userinfoHandler = () =>
+      jsonResponse({ sub: "user-1", email: "ada@example.com" });
+    const info = await auth.fetchUserInfo("access-0");
+    expect(info.email).toBe("ada@example.com");
+  });
+
+  it("wraps a transport failure as a failed provider request", async () => {
+    idp.userinfoHandler = () => {
+      throw new TypeError("fetch failed");
+    };
+    await expectAuthAiError(auth.fetchUserInfo("access-0"), "OIDC_003");
+  });
+
+  it("wraps a provider refusal as a failed provider request", async () => {
+    idp.userinfoHandler = () => new Response("unavailable", { status: 503 });
+    await expectAuthAiError(auth.fetchUserInfo("access-0"), "OIDC_003");
+  });
+
+  it("rejects a successful answer that is not JSON", async () => {
+    idp.userinfoHandler = () =>
+      new Response("<html></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    await expectAuthAiError(auth.fetchUserInfo("access-0"), "TOK_001");
+  });
+
+  it("rejects a successful answer without a subject", async () => {
+    idp.userinfoHandler = () => jsonResponse({ email: "ada@example.com" });
+    await expectAuthAiError(auth.fetchUserInfo("access-0"), "TOK_001");
+  });
+});
+
 describe("clientCredentials", () => {
   it("requests a machine token with the given scope and resource", async () => {
     idp.tokenHandler = () =>

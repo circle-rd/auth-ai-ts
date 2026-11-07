@@ -10,7 +10,7 @@ token or secret, to the server log.
 ## Register the application in auth-service
 
 - Confidential application at `https://<host>`, with **LiteLLM support** on.
-- Redirect URI `https://<host>/auth/callback`, post-logout URI `https://<host>/`.
+- Redirect URI `https://<host>/auth/callback`, post-logout URI `https://<host>/auth/logout/callback`.
 - Back-channel logout URI `https://<host>/auth/backchannel-logout`.
 - Machine scopes (superadmin): `billing:read`, `consumption:read`, `consumption:write`.
 

@@ -12,6 +12,25 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-07
+
+### Added
+
+- **UserInfo enrichment**: after the code exchange and during server-managed session renewals, the SDK calls the
+  provider's `userinfo_endpoint` and fills claims the ID token omits (`email`, `email_verified`
+  and the standard profile claims). The UserInfo `sub` is checked against the ID token before
+  any claim is merged; claims already present in the ID token are never replaced. Sign-in and
+  server-managed session renewal now fail with `OIDC_003` when the UserInfo endpoint is
+  unreachable, returns an error, or answers an invalid body, so treat it as a sign-in dependency.
+
+### Changed
+
+- **RP-initiated logout state**: `POST /auth/logout` now generates a `state`, sends it to the
+  provider's `end_session_endpoint`, and the new `<basePath>/logout/callback` route accepts the
+  provider's redirect even when the state is missing or different. Applications must set
+  `postLogoutRedirectUri` to `<origin><basePath>/logout/callback` and register the same absolute
+  URI with the provider; the reference app and quick-start now do so.
+
 ## [0.2.0] - 2026-11-04
 
 ### Changed
@@ -97,7 +116,9 @@ First release.
 - `__Host-` cookies, same-origin redirect targets, refused cross-site logout, URLs built
   on the registered origin, Fastify >= 5.12.6 required.
 
-[Unreleased]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/circle-rd/auth-ai-ts/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/circle-rd/auth-ai-ts/releases/tag/v0.1.0

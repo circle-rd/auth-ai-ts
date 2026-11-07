@@ -32,7 +32,7 @@ const auth = createAuthClient({
   clientId: config.AUTH_CLIENT_ID,
   clientSecret: config.AUTH_CLIENT_SECRET,
   redirectUri: `${config.PUBLIC_URL}/auth/callback`,
-  postLogoutRedirectUri: `${config.PUBLIC_URL}/`,
+  postLogoutRedirectUri: `${config.PUBLIC_URL}/auth/logout/callback`,
   gatewayUrl: config.GATEWAY_URL,
   resources: [config.PUBLIC_URL],
 });

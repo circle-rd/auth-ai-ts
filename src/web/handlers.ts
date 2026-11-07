@@ -49,6 +49,11 @@ const handshakeSchema = z.object({
   next: z.string(),
 });
 
+const logoutCookieSchema = z.object({
+  state: z.string(),
+  next: z.string(),
+});
+
 export interface AuthHandlersOptions {
   readonly auth: AuthClient;
   readonly grants: GrantManager;
@@ -140,6 +145,7 @@ export async function createAuthHandlers(
   const key = await deriveSealKey(options.secret);
   const sessionCookie = cookieName("aai_session", secure);
   const loginCookie = cookieName("aai_login", secure);
+  const logoutCookie = cookieName("aai_logout", secure);
 
   const withCookies = (...cookies: string[]): Headers => {
     const headers = new Headers();
@@ -169,11 +175,12 @@ export async function createAuthHandlers(
     if (!tokens.idToken) {
       throw ERR.TOK_001("The provider returned no ID token on refresh");
     }
-    const claims = await auth.verifyIdToken(tokens.idToken);
+    let claims = await auth.verifyIdToken(tokens.idToken);
     if (claims.sub !== session.userId) {
       await endSessions([session]);
       throw ERR.TOK_001("The refreshed ID token belongs to another user");
     }
+    claims = await auth.applyUserInfo(claims, tokens.accessToken);
     const renewed: Session = {
       ...session,
       claims,
@@ -346,11 +353,21 @@ export async function createAuthHandlers(
       return errorResponse(ERR.SES_004(), options.onError);
     }
     const session = await readSession(request);
+    const state = randomId();
+    const next = safeRedirectPath(
+      new URL(request.url).searchParams.get("next"),
+      defaultRedirect,
+    );
+    const sealPath = await seal(key, { state, next }, HANDSHAKE_TTL_SECONDS);
+    const logoutCookieValue = serializeCookie(logoutCookie, sealPath, {
+      maxAgeSeconds: HANDSHAKE_TTL_SECONDS,
+      secure,
+    });
     let logoutUrl: string | null = null;
     try {
       // The SSO session is shared by every application: end it even without a local session.
       logoutUrl = await auth.logoutUrl(
-        session ? { idTokenHint: session.idToken } : {},
+        session ? { idTokenHint: session.idToken, state } : { state },
       );
     } catch (err) {
       // A provider without end-session still lets the local session end.
@@ -358,11 +375,40 @@ export async function createAuthHandlers(
     }
     if (session) await endSessions([session]);
 
-    const headers = withCookies(clearCookie(sessionCookie, secure));
+    const headers = withCookies(
+      clearCookie(sessionCookie, secure),
+      logoutCookieValue,
+    );
     if (request.headers.get("accept")?.includes("application/json")) {
       return jsonResponse({ logoutUrl }, 200, headers);
     }
-    return redirectResponse(logoutUrl ?? defaultRedirect, 303, headers);
+    return redirectResponse(logoutUrl ?? next, 303, headers);
+  }
+
+  /**
+   * Handles the OP's post-logout redirect. The local session is already gone;
+   * the sealed cookie only carries the destination and the state hint. A
+   * missing or different state must not strand the user after the provider has
+   * ended the session, so the redirect still succeeds.
+   */
+  async function logoutCallback(request: Request): Promise<Response> {
+    let target = defaultRedirect;
+    const sealed = parseCookies(request.headers.get("cookie")).get(
+      logoutCookie,
+    );
+    if (sealed) {
+      try {
+        const cookie = await unseal(key, sealed, logoutCookieSchema);
+        target = safeRedirectPath(cookie.next, defaultRedirect);
+      } catch {
+        // A tampered or expired cookie only loses the return target.
+      }
+    }
+    return redirectResponse(
+      target,
+      303,
+      withCookies(clearCookie(logoutCookie, secure)),
+    );
   }
 
   const backchannelLogout = createBackchannelLogoutHandler({
@@ -382,6 +428,7 @@ export async function createAuthHandlers(
     "/callback": { method: "GET", run: callback },
     "/me": { method: "GET", run: me },
     "/logout": { method: "POST", run: logout },
+    "/logout/callback": { method: "GET", run: logoutCallback },
     "/backchannel-logout": { method: "POST", run: backchannelLogout },
   };
   if (options.ai) {

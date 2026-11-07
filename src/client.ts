@@ -1,6 +1,6 @@
 import * as oidc from "openid-client";
-import { idTokenClaimsSchema } from "./claims.js";
-import type { IdTokenClaims } from "./claims.js";
+import { idTokenClaimsSchema, userInfoClaimsSchema } from "./claims.js";
+import type { IdTokenClaims, UserInfoClaims } from "./claims.js";
 import { parseAuthClientConfig } from "./config.js";
 import type { AuthClientConfig, ResolvedAuthClientConfig } from "./config.js";
 import { ERR } from "./errors.js";
@@ -125,10 +125,11 @@ export class AuthClient {
     if (!tokens.idToken) {
       throw ERR.OIDC_002("The token response carries no ID token");
     }
-    const claims = await this.#verifyIdToken(provider, tokens.idToken);
+    let claims = await this.#verifyIdToken(provider, tokens.idToken);
     if (claims["nonce"] !== handshake.nonce) {
       throw ERR.TOK_001("ID token nonce mismatch");
     }
+    claims = await this.#applyUserInfo(provider, claims, tokens.accessToken);
 
     return {
       tokens: { ...tokens, idToken: tokens.idToken },
@@ -139,6 +140,46 @@ export class AuthClient {
 
   async verifyIdToken(idToken: string): Promise<IdTokenClaims> {
     return this.#verifyIdToken(await this.#loadProvider(), idToken);
+  }
+
+  async fetchUserInfo(accessToken: string): Promise<UserInfoClaims> {
+    const { configuration } = await this.#loadProvider();
+    if (!configuration.serverMetadata().userinfo_endpoint) {
+      throw ERR.OIDC_004("The provider advertises no userinfo_endpoint");
+    }
+    let info: oidc.UserInfoResponse;
+    try {
+      info = await oidc.fetchUserInfo(
+        configuration,
+        accessToken,
+        oidc.skipSubjectCheck,
+      );
+    } catch (err) {
+      throw toAuthAiError(err, "userinfo");
+    }
+    try {
+      return userInfoClaimsSchema.parse(info);
+    } catch (err) {
+      throw ERR.TOK_001("The UserInfo response has an unexpected shape", {
+        cause: err,
+      });
+    }
+  }
+
+  /**
+   * Fills claims the ID token omits from UserInfo, without replacing values.
+   *
+   * auth-service keeps email and profile claims out of the ID token when an
+   * access token is issued; UserInfo is then the authoritative source. The
+   * registered and entitlement claims already present in the ID token are
+   * never overwritten.
+   */
+  async applyUserInfo(
+    claims: IdTokenClaims,
+    accessToken: string,
+  ): Promise<IdTokenClaims> {
+    const provider = await this.#loadProvider();
+    return this.#applyUserInfo(provider, claims, accessToken);
   }
 
   /**
@@ -253,6 +294,31 @@ export class AuthClient {
     } catch (err) {
       throw toAuthAiError(err, "token-request");
     }
+  }
+
+  async #applyUserInfo(
+    provider: Provider,
+    claims: IdTokenClaims,
+    accessToken: string,
+  ): Promise<IdTokenClaims> {
+    if (!provider.configuration.serverMetadata().userinfo_endpoint) {
+      return claims;
+    }
+    const info = await this.fetchUserInfo(accessToken);
+    if (info.sub !== claims.sub) {
+      throw ERR.TOK_001("The UserInfo response belongs to another user");
+    }
+    const current = claims as Record<string, unknown>;
+    const updates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(info)) {
+      if (key === "sub" || value === undefined || value === null) continue;
+      if (current[key] === undefined || current[key] === null) {
+        updates[key] = value;
+      }
+    }
+    return Object.keys(updates).length > 0
+      ? ({ ...claims, ...updates } as IdTokenClaims)
+      : claims;
   }
 
   async #verifyIdToken(

@@ -9,11 +9,13 @@ export {
   accessTokenClaimsSchema,
   hasRole,
   idTokenClaimsSchema,
+  userInfoClaimsSchema,
 } from "./claims.js";
 export type {
   FeatureValue,
   IdTokenClaims,
   PermissionAction,
+  UserInfoClaims,
 } from "./claims.js";
 export { AuthAiError, ERR } from "./errors.js";
 export type {

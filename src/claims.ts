@@ -21,20 +21,41 @@ const registeredShape = {
   iat: z.number(),
 };
 
-/** Claims of an ID token issued by auth-service. Unknown claims are kept as is. */
-export const idTokenClaimsSchema = z.looseObject({
-  ...registeredShape,
-  sid: z.string().optional(),
-  azp: z.string().optional(),
+const profileShape = {
   name: z.string().optional(),
-  picture: z.string().optional(),
   given_name: z.string().optional(),
   family_name: z.string().optional(),
+  middle_name: z.string().optional(),
+  nickname: z.string().optional(),
+  preferred_username: z.string().optional(),
+  profile: z.string().optional(),
+  picture: z.string().optional(),
+  website: z.string().optional(),
+  gender: z.string().optional(),
+  birthdate: z.string().optional(),
+  zoneinfo: z.string().optional(),
+  locale: z.string().optional(),
   company: z.string().optional(),
   updated_at: z.number().optional(),
   email: z.string().optional(),
   email_verified: z.boolean().optional(),
   phone_number: z.string().optional(),
+  phone_number_verified: z.boolean().optional(),
+};
+
+/** Claims of an ID token issued by auth-service. Unknown claims are kept as is. */
+export const idTokenClaimsSchema = z.looseObject({
+  ...registeredShape,
+  sid: z.string().optional(),
+  azp: z.string().optional(),
+  ...profileShape,
+  ...entitlementShape,
+});
+
+/** Standard claims returned by the UserInfo endpoint (no token claims). */
+export const userInfoClaimsSchema = z.looseObject({
+  sub: z.string(),
+  ...profileShape,
   ...entitlementShape,
 });
 
@@ -52,6 +73,7 @@ export const accessTokenClaimsSchema = z.looseObject({
 
 export type FeatureValue = z.infer<typeof featureValueSchema>;
 export type IdTokenClaims = z.infer<typeof idTokenClaimsSchema>;
+export type UserInfoClaims = z.infer<typeof userInfoClaimsSchema>;
 export type AccessTokenClaims = z.infer<typeof accessTokenClaimsSchema>;
 
 export type PermissionAction = "read" | "write";

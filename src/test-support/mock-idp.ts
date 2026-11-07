@@ -26,6 +26,7 @@ export interface MockIdp {
   readonly requests: RecordedRequest[];
   readonly metadata: Record<string, unknown>;
   tokenHandler: RequestHandler;
+  userinfoHandler: RequestHandler;
   /** Serves the REST API below `/api/`. */
   apiHandler: RequestHandler;
   revocationStatus: number;
@@ -59,6 +60,7 @@ export async function createMockIdp(): Promise<MockIdp> {
     issuer: ISSUER,
     authorization_endpoint: `${ISSUER}/authorize`,
     token_endpoint: `${ISSUER}/token`,
+    userinfo_endpoint: `${ISSUER}/userinfo`,
     jwks_uri: `${ISSUER}/jwks`,
     introspection_endpoint: `${ISSUER}/introspect`,
     revocation_endpoint: `${ISSUER}/revoke`,
@@ -81,6 +83,7 @@ export async function createMockIdp(): Promise<MockIdp> {
     requests,
     metadata,
     tokenHandler: () => jsonResponse({ error: "server_error" }, 500),
+    userinfoHandler: () => jsonResponse({ sub: "user-1" }),
     apiHandler: () =>
       jsonResponse({ error: { code: "APP_002", message: "unhandled" } }, 404),
     revocationStatus: 200,
@@ -150,6 +153,8 @@ export async function createMockIdp(): Promise<MockIdp> {
           return jsonResponse({ keys: [jwk] });
         case "/token":
           return idp.tokenHandler(request);
+        case "/userinfo":
+          return idp.userinfoHandler(request);
         case "/revoke":
           return new Response(null, { status: idp.revocationStatus });
         case "/introspect":

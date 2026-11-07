@@ -1,6 +1,6 @@
 {
   "name": "@circle-rd/auth-ai",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript SDK for applications relying on a CIRCLE auth-service identity provider: OIDC sign-in (backend-for-frontend), entitlements, billing, credit wallet and LiteLLM gateway.",
   "keywords": [
     "oidc",
