@@ -4,7 +4,7 @@ seo:
   description: TypeScript SDK for applications relying on a CIRCLE auth-service identity provider. Backend-for-frontend OIDC sign-in, entitlements from claims, back-channel logout, Bearer verification, credit wallet, LiteLLM gateway client, billing and consumption.
 ---
 
-:::u-page-hero
+:::u-page-hero{.circle-hero}
 #title
 CIRCLE auth-ai
 
@@ -25,7 +25,7 @@ GitHub
 ::::
 :::
 
-:::u-page-section
+:::u-page-section{.circle-section}
 #title
 What it does
 

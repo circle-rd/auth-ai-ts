@@ -46,11 +46,17 @@ describe("parseAuthClientConfig", () => {
     ).toBe("CFG_001");
   });
 
+  it("accepts path-based issuers with a trailing slash", () => {
+    const issuer = "https://www.certification.openid.net/test/a/rp-ts-basic/";
+    expect(parseAuthClientConfig({ ...valid, issuer }).issuer).toBe(issuer);
+  });
+
   it.each([
     ["an http issuer", { issuer: "http://auth.example.com" }],
+    ["an issuer with a query", { issuer: "https://auth.example.com?tenant=1" }],
     [
-      "an issuer with a trailing slash",
-      { issuer: "https://auth.example.com/" },
+      "an issuer with a fragment",
+      { issuer: "https://auth.example.com#tenant" },
     ],
     ["scopes without openid", { scopes: ["profile"] }],
     ["a non-URL resource", { resources: ["not a url"] }],

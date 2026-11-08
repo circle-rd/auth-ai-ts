@@ -16,11 +16,13 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 // Scope that lets a user token read the user's own wallet.
 export const WALLET_SELF_SCOPE = "wallet:self:read";
 
-const issuerSchema = z
-  .url({ protocol: /^https$/ })
-  .refine((value) => !value.endsWith("/"), {
-    message: "must not end with a slash: it is compared verbatim to `iss`",
-  });
+const issuerSchema = z.url({ protocol: /^https$/ }).refine(
+  (value) => {
+    const url = new URL(value);
+    return url.search === "" && url.hash === "";
+  },
+  { message: "must not contain a query or fragment" },
+);
 
 // http is allowed for loopback only, so local development needs no tunnel.
 const redirectUriSchema = z.url().refine(

@@ -30,11 +30,10 @@ export interface AuthClientOptions {
 
 type TokenResponse = Awaited<ReturnType<typeof oidc.refreshTokenGrant>>;
 
+const TOKEN_EXPIRY_FALLBACK_SECONDS = 300;
+
 function toTokenSet(response: TokenResponse): TokenSet {
-  const expiresIn = response.expiresIn();
-  if (expiresIn === undefined) {
-    throw ERR.OIDC_003("The token response carries no expires_in");
-  }
+  const expiresIn = response.expiresIn() ?? TOKEN_EXPIRY_FALLBACK_SECONDS;
   return {
     accessToken: response.access_token,
     tokenType: response.token_type,

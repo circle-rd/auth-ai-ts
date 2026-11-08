@@ -68,7 +68,7 @@ function post(token: string | undefined, init: RequestInit = {}): Request {
 describe("back-channel logout handler", () => {
   it("ends the session named by a valid token", async () => {
     const response = await handle(post(await logoutToken()));
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(onLogout).toHaveBeenCalledExactlyOnceWith({
       sid: "sid-1",
@@ -77,9 +77,26 @@ describe("back-channel logout handler", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("can accept a provider's missing typ only when explicitly configured", async () => {
+    const permissive = createBackchannelLogoutHandler({
+      auth: createTestAuth(idp),
+      onLogout,
+      allowMissingTyp: true,
+      onError,
+    });
+
+    const response = await permissive(post(await logoutToken({}, null)));
+
+    expect(response.status).toBe(200);
+    expect(onLogout).toHaveBeenCalledExactlyOnceWith({
+      sid: "sid-1",
+      sub: "user-1",
+    });
+  });
+
   it("refuses a replayed token", async () => {
     const token = await logoutToken();
-    expect((await handle(post(token))).status).toBe(204);
+    expect((await handle(post(token))).status).toBe(200);
     const replay = await handle(post(token));
     expect(replay.status).toBe(400);
     expect(await replay.json()).toEqual({ error: "invalid_request" });
@@ -125,7 +142,7 @@ describe("back-channel logout handler", () => {
   it("does not let a failed validation burn the jti", async () => {
     const jti = "shared-jti";
     await handle(post(await logoutToken({ jti, nonce: "n" })));
-    expect((await handle(post(await logoutToken({ jti })))).status).toBe(204);
+    expect((await handle(post(await logoutToken({ jti })))).status).toBe(200);
   });
 
   it("answers 405 to anything but POST", async () => {

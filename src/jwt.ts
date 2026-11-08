@@ -1,6 +1,7 @@
 import {
   createRemoteJWKSet,
   customFetch,
+  decodeProtectedHeader,
   errors as joseErrors,
   jwtVerify,
 } from "jose";
@@ -9,6 +10,7 @@ import { ERR } from "./errors.js";
 
 // Re-fetch an unknown `kid` (key rotation) at most once per cooldown.
 const JWKS_COOLDOWN_MS = 30_000;
+const JWKS_UNKNOWN_KID_COOLDOWN_MS = 1_000;
 const JWKS_MAX_AGE_MS = 3_600_000;
 
 export interface JwtVerifierOptions {
@@ -38,9 +40,24 @@ export function createJwtVerifier(options: JwtVerifierOptions): JwtVerifier {
     timeoutDuration: options.timeoutMs,
     ...(options.fetch ? { [customFetch]: options.fetch } : {}),
   });
+  let lastUnknownKidReloadAt = 0;
 
   return async (token, { audience, typ }) => {
     try {
+      const { kid } = decodeProtectedHeader(token);
+      const cached = jwks.jwks();
+      const hasMatchingKid =
+        typeof kid === "string" &&
+        cached?.keys.some((key) => key.kid === kid) === true;
+      const needsRefresh = typeof kid !== "string" || !hasMatchingKid;
+      if (
+        cached &&
+        needsRefresh &&
+        Date.now() - lastUnknownKidReloadAt >= JWKS_UNKNOWN_KID_COOLDOWN_MS
+      ) {
+        await jwks.reload();
+        lastUnknownKidReloadAt = Date.now();
+      }
       const { payload } = await jwtVerify(token, jwks, {
         issuer: options.issuer,
         audience,

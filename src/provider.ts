@@ -96,7 +96,7 @@ async function loadProvider(
     verifyJwt: createJwtVerifier({
       issuer: config.issuer,
       jwksUri: server.jwks_uri,
-      algorithms,
+      algorithms: [idTokenAlgorithm],
       clockToleranceSeconds: config.clockToleranceSeconds,
       timeoutMs: config.timeoutMs,
       fetch: fetchImpl,

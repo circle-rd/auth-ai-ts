@@ -75,6 +75,8 @@ export interface AuthHandlersOptions {
   /** Adds `/wallet`, `/wallet/stats` and `/models` for the frontend, read with the user's tokens. */
   readonly ai?: AiClient;
   readonly replayStore?: ReplayStore;
+  /** Accept a missing logout-token `typ` only for a known non-conforming OP. */
+  readonly allowMissingLogoutTokenTyp?: boolean;
   /** Called after sessions end (sign-out or back-channel logout): close sockets, drop caches. */
   readonly onSessionsEnded?: (
     sessions: readonly Session[],
@@ -414,6 +416,9 @@ export async function createAuthHandlers(
   const backchannelLogout = createBackchannelLogoutHandler({
     auth,
     replayStore,
+    ...(options.allowMissingLogoutTokenTyp !== undefined
+      ? { allowMissingTyp: options.allowMissingLogoutTokenTyp }
+      : {}),
     ...(options.onError ? { onError: options.onError } : {}),
     onLogout: async ({ sid }) => {
       await afterSessionsRemoved(await sessions.deleteByProviderSession(sid));

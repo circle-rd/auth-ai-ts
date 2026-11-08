@@ -34,9 +34,12 @@ export interface MockIdp {
   discoveryFailures: number;
   signJwt(
     claims: JWTPayload,
-    options?: { typ?: string; key?: CryptoKey; kid?: string },
+    options?: { typ?: string; key?: CryptoKey; kid?: string | null },
   ): Promise<string>;
-  idToken(claims?: JWTPayload): Promise<string>;
+  idToken(
+    claims?: JWTPayload,
+    options?: { kid?: string | null },
+  ): Promise<string>;
   generateForeignKey(): Promise<CryptoKey>;
   requestsTo(path: string): RecordedRequest[];
 }
@@ -96,22 +99,25 @@ export async function createMockIdp(): Promise<MockIdp> {
       return new SignJWT(claims)
         .setProtectedHeader({
           alg: "ES256",
-          kid: options.kid ?? "key-1",
+          ...(options.kid === null ? {} : { kid: options.kid ?? "key-1" }),
           ...(options.typ ? { typ: options.typ } : {}),
         })
         .sign(options.key ?? privateKey);
     },
 
-    async idToken(claims = {}) {
+    async idToken(claims = {}, options = {}) {
       const now = Math.floor(Date.now() / 1000);
-      return idp.signJwt({
-        iss: ISSUER,
-        sub: "user-1",
-        aud: CLIENT_ID,
-        iat: now,
-        exp: now + 300,
-        ...claims,
-      });
+      return idp.signJwt(
+        {
+          iss: ISSUER,
+          sub: "user-1",
+          aud: CLIENT_ID,
+          iat: now,
+          exp: now + 300,
+          ...claims,
+        },
+        options,
+      );
     },
 
     async generateForeignKey() {
