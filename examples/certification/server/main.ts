@@ -41,8 +41,8 @@ const handlers = await createAuthHandlers({
   grants,
   sessions: new MemorySessionStore(),
   secret: config.COOKIE_SECRET,
-  requireProviderSession: false,
-  allowMissingLogoutTokenTyp: true,
+  requireProviderSession: !config.OIDF_MOCK_COMPAT,
+  allowMissingLogoutTokenTyp: config.OIDF_MOCK_COMPAT,
   onError: (error) => {
     app.log.warn(
       { error: error instanceof AuthAiError ? error.toJSON() : String(error) },

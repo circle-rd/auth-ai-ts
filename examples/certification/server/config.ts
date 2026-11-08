@@ -15,6 +15,12 @@ const configSchema = z.object({
   AUTH_CLIENT_ID: z.string().min(1),
   AUTH_CLIENT_SECRET: z.string().min(1),
   COOKIE_SECRET: z.string().min(32),
+  // Only for the OpenID Foundation mock OP: accepts the sid-less ID tokens and the
+  // logout tokens without `typ` that its plans issue. Never enable against auth-service.
+  OIDF_MOCK_COMPAT: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 export interface Config {
@@ -24,6 +30,7 @@ export interface Config {
   readonly AUTH_CLIENT_ID: string;
   readonly AUTH_CLIENT_SECRET: string;
   readonly COOKIE_SECRET: string;
+  readonly OIDF_MOCK_COMPAT: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
