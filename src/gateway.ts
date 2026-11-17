@@ -3,6 +3,8 @@ import { ERR } from "./errors.js";
 import { toGatewayError } from "./gateway-errors.js";
 
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
+// The gateway's own `/v1/mcp/...` routes own this segment: no server can be named so.
+const RESERVED_SERVER_NAME = "v1";
 
 export const gatewayModelSchema = z.looseObject({
   id: z.string(),
@@ -89,17 +91,17 @@ export class GatewayClient {
     return this.#options.tokens.getToken();
   }
 
-  /** The models the user's plan may call. */
+  /** The models the user may call: the ones they own or that are shared with them. */
   async listModels(): Promise<GatewayModel[]> {
     return (await this.#getJson("/v1/models", modelListSchema)).data;
   }
 
-  /** The agents the user's plan may reach. */
+  /** The agents the user may reach. */
   listAgents(): Promise<GatewayAgent[]> {
     return this.#getJson("/v1/agents", z.array(gatewayAgentSchema));
   }
 
-  /** The MCP servers the user's plan may reach. */
+  /** The MCP servers the user may reach. */
   listMcpServers(): Promise<GatewayMcpServer[]> {
     return this.#getJson("/v1/mcp/server", z.array(gatewayMcpServerSchema));
   }
@@ -111,7 +113,10 @@ export class GatewayClient {
    */
   mcpUrl(serverName?: string): string {
     if (serverName === undefined) return `${this.#options.gatewayUrl}/mcp`;
-    if (!SERVER_NAME_PATTERN.test(serverName)) {
+    if (
+      !SERVER_NAME_PATTERN.test(serverName) ||
+      serverName.toLowerCase() === RESERVED_SERVER_NAME
+    ) {
       throw ERR.CFG_001("Invalid MCP server name");
     }
     return `${this.#options.gatewayUrl}/${serverName}/mcp`;

@@ -4,18 +4,21 @@ import { BillingApi } from "./billing.js";
 import { ConsumptionApi } from "./consumption.js";
 import { JsonHttp } from "../http.js";
 import { MachineTokenProvider } from "./machine-tokens.js";
+import { ResourcesApi } from "./resources.js";
 
 type MachineAuth = Pick<AuthClient, "clientCredentials" | "config" | "fetch">;
 
 /**
  * The auth-service REST API as the application's backend: every call carries a
  * `client_credentials` token minted from the application's own secret. The
- * scopes `billing:read`, `consumption:read` and `consumption:write` must be
- * granted to the application by a superadmin.
+ * scopes `billing:read`, `consumption:read`, `consumption:write` and
+ * `resources:validate` are granted to new confidential applications; older
+ * applications, and the platform scope `resources:authorize`, need a superadmin.
  */
 export class MachineApi {
   readonly billing: BillingApi;
   readonly consumption: ConsumptionApi;
+  readonly resources: ResourcesApi;
 
   constructor(auth: MachineAuth) {
     if (!auth.config.clientSecret) {
@@ -29,6 +32,7 @@ export class MachineApi {
     });
     this.billing = new BillingApi(http);
     this.consumption = new ConsumptionApi(http);
+    this.resources = new ResourcesApi(http);
   }
 }
 

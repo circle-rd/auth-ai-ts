@@ -209,7 +209,7 @@ describe("MCP endpoints", () => {
     );
   });
 
-  it.each(["", "a/b", "..", "a b", "x?y=1", "x#y", "-start"])(
+  it.each(["", "a/b", "..", "a b", "x?y=1", "x#y", "-start", "v1", "V1"])(
     "refuses the server name %j",
     (name) => {
       expect(() => client.mcpUrl(name)).toThrowError(

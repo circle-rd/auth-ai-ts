@@ -34,6 +34,15 @@ export type {
   ConsumptionReport,
   ConsumptionResult,
 } from "./consumption.js";
+export { ResourcesApi } from "./resources.js";
+export type {
+  AccessibleResource,
+  AuthorizeDecision,
+  AuthorizeRequest,
+  ListAccessibleOptions,
+  ResourceState,
+  ValidationOutcome,
+} from "./resources.js";
 export {
   bearerChallenge,
   protectedResourceMetadata,

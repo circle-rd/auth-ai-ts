@@ -12,6 +12,40 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-17
+
+Aligns the SDK with auth-service resource sharing (generic resource registry, grants,
+validation, LiteLLM entitlements). The new machine calls need an auth-service with
+`RESOURCE_SHARING_ENABLED`.
+
+### Added
+
+- **`machine.resources`** (`@circle-rd/auth-ai/server`, class `ResourcesApi`): `authorize`
+  asks whether a user may use a resource (`resources:authorize`) and returns a `deny` or an
+  `allow` with `resourceId`, `resourceUri`, `applicationSlug`, `ownerType`, `ownerId` and
+  `accessKind`; `listAccessible` lists the validated resources a user may use;
+  `validate` and `invalidate` let the validator bound to a resource scheme report the
+  outcome of an ownership check or its loss (`resources:validate`). Inputs are validated
+  before any request (`CFG_001`). An answer that is neither a known `deny` nor a complete
+  `allow` throws `API_002`, so it can never read as an admission.
+- Guide [Resource sharing](docs-site/content/docs/3.guides/3.ai-and-billing/3.resource-sharing.md).
+
+### Changed
+
+- **`gateway.mcpUrl(name)` refuses the name `v1`** (any case) with `CFG_001`: the gateway's own
+  `/v1/mcp/...` routes own that path segment and no MCP server can be named so.
+- Gateway access is now decided by auth-service entitlements (ownership, grants, application
+  membership) instead of plan teams and access groups: `listModels`, `listAgents` and
+  `listMcpServers` return what the user is entitled to, and a refusal is still `GW_003`.
+  The documentation no longer refers to plan teams, access groups or `team_model_access_denied`.
+- The machine scope defaults documented for a new confidential application now include
+  `resources:validate`; `resources:authorize` is never a default.
+
+### Fixed
+
+- A `200` answer of the auth-service API whose body is not JSON now throws `API_002` instead of
+  a raw `SyntaxError`.
+
 ## [0.3.0] - 2026-11-07
 
 ### Added

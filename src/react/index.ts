@@ -168,7 +168,7 @@ export function useWalletStats(days?: number): UseResourceResult<WalletStats> {
   return useResource(() => auth.getWalletStats(days), {}, [auth, days]);
 }
 
-/** The models the user's plan may call on the gateway. */
+/** The models the user may call on the gateway. */
 export function useModels(): UseResourceResult<GatewayModel[]> {
   const { auth } = useAuthContext();
   return useResource(() => auth.listModels(), {}, [auth]);

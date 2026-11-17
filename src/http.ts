@@ -51,7 +51,9 @@ export class JsonHttp {
     }
     if (!response.ok) throw await this.#toError(response);
 
-    const parsed = request.schema.safeParse(await response.json());
+    const parsed = request.schema.safeParse(
+      await response.json().catch(() => undefined),
+    );
     if (!parsed.success) {
       throw ERR.API_002(undefined, { cause: parsed.error });
     }
