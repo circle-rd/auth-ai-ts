@@ -4,6 +4,9 @@ import type { JsonHttp } from "../http.js";
 
 const AUTHORIZE_SCOPE = "resources:authorize";
 const VALIDATE_SCOPE = "resources:validate";
+const USAGE_SCOPE = "resources:usage:write";
+const FUTURE_TOLERANCE_MS = 5 * 60_000;
+const PAST_WINDOW_MS = 30 * 24 * 60 * 60_000;
 const GATEWAY_PATH = "/api/internal/gateway";
 const BASE_PATH = `${GATEWAY_PATH}/resources`;
 
@@ -50,6 +53,69 @@ const validationInputSchema = z
   })
   .strict();
 
+const usageInputSchema = z
+  .object({
+    subjectId: z.string().min(1).max(256),
+    clientId: z.string().min(1).max(256),
+    resourceId: z.uuid(),
+    resourceUri: z.string().min(3).max(512),
+    requestId: z.string().regex(/^[a-f0-9]{64}$/, "must be a trusted event id"),
+    occurredAt: z.date(),
+    usageSource: z.enum(["provider", "unsupported"]),
+    costUsd: z
+      .string()
+      .regex(
+        /^(0|[1-9][0-9]{0,17})(\.[0-9]{1,18})?$/,
+        "must be a plain decimal",
+      )
+      .nullable()
+      .default(null),
+    promptTokens: z.number().int().min(0).nullable().default(null),
+    completionTokens: z.number().int().min(0).nullable().default(null),
+    totalTokens: z.number().int().min(0).nullable().default(null),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const now = Date.now();
+    const at = value.occurredAt.getTime();
+    if (at > now + FUTURE_TOLERANCE_MS || at < now - PAST_WINDOW_MS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["occurredAt"],
+        message: "occurredAt is outside the accepted accounting window",
+      });
+    }
+    const tokens = [
+      value.promptTokens,
+      value.completionTokens,
+      value.totalTokens,
+    ];
+    if (value.usageSource === "unsupported") {
+      if (value.costUsd !== null || tokens.some((t) => t !== null)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "unsupported usage must not carry cost or tokens",
+        });
+      }
+    } else if (value.costUsd === null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["costUsd"],
+        message: "provider usage requires a reported cost",
+      });
+    }
+  });
+
+const usageReceiptSchema = z.object({
+  usage: z.object({
+    id: z.string(),
+    resourceId: z.string(),
+    requestId: z.string(),
+    occurredAt: z.string(),
+  }),
+  replayed: z.boolean(),
+});
+
 const invalidationReasonSchema = z.string().trim().min(1).max(500);
 const resourceIdSchema = z.uuid();
 
@@ -92,6 +158,7 @@ const resourceStateSchema = z.object({
 export type AuthorizeDecision = z.infer<typeof authorizeDecisionSchema>;
 export type AccessibleResource = z.infer<typeof accessibleResourceSchema>;
 export type ResourceState = z.infer<typeof resourceStateSchema>;
+export type UsageReceipt = z.infer<typeof usageReceiptSchema>;
 
 export interface AuthorizeRequest {
   /** The user: the verified `sub` of the access token the caller received. */
@@ -119,6 +186,26 @@ export interface ValidationOutcome {
   readonly reason?: string;
   /** Proof gathered by the validator. Never put a secret in it. */
   readonly evidence?: Readonly<Record<string, unknown>>;
+}
+
+export interface UsageRecord {
+  /** The user: the verified `sub` of the access token the caller received. */
+  readonly subjectId: string;
+  /** The calling client: the verified `azp` of that token. */
+  readonly clientId: string;
+  readonly resourceId: string;
+  readonly resourceUri: string;
+  /** The event's trusted identifier: 64 lowercase hex characters. */
+  readonly requestId: string;
+  /** When the usage happened: at most five minutes ahead, 30 days back. */
+  readonly occurredAt: Date;
+  /** `provider` requires `costUsd`; `unsupported` carries no cost or tokens. */
+  readonly usageSource: "provider" | "unsupported";
+  /** Gross cost in USD as a plain decimal string, e.g. `"0.0042"`. */
+  readonly costUsd?: string | null;
+  readonly promptTokens?: number | null;
+  readonly completionTokens?: number | null;
+  readonly totalTokens?: number | null;
 }
 
 function invalid(what: string, error: z.ZodError): never {
@@ -244,5 +331,24 @@ export class ResourcesApi {
       schema: z.object({ resource: resourceStateSchema }),
     });
     return resource;
+  }
+
+  /**
+   * Records the usage a provider billed for a shared resource. auth-service
+   * owns accounting: this is the only write and reading stays with it. Needs
+   * `resources:usage:write`, granted to the platform's metering components
+   * only. Replaying an event is safe (`replayed: true`); a payload that
+   * conflicts with the stored event is refused (`RES_012`), and so is a caller
+   * with no access to the resource (`RES_011`).
+   */
+  async recordUsage(record: UsageRecord): Promise<UsageReceipt> {
+    const usage = parseInput("usage record", usageInputSchema, record);
+    return this.#http.request({
+      method: "POST",
+      path: `${GATEWAY_PATH}/usage`,
+      scope: USAGE_SCOPE,
+      body: { ...usage, occurredAt: usage.occurredAt.toISOString() },
+      schema: usageReceiptSchema,
+    });
   }
 }

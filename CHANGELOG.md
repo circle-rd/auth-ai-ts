@@ -12,6 +12,20 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-18
+
+### Added
+
+- **`machine.resources.recordUsage`** reports the usage a provider billed for a shared resource
+  to auth-service (`POST /api/internal/gateway/usage`, scope `resources:usage:write`, granted to
+  the platform's metering components only). It returns a `UsageReceipt` (`usage`, `replayed`):
+  replaying an event is idempotent, a payload that conflicts with the stored event is refused
+  (`RES_012`), and so is a caller with no access to the resource (`RES_011`). The record is
+  validated before any request (`CFG_001`): `requestId` is 64 lowercase hex characters,
+  `occurredAt` is a `Date` at most five minutes ahead and 30 days back, `costUsd` is a plain
+  decimal required for `provider` usage, and `unsupported` usage carries no cost and no tokens.
+  Reads stay with auth-service.
+
 ## [0.4.0] - 2026-11-17
 
 Aligns the SDK with auth-service resource sharing (generic resource registry, grants,

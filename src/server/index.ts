@@ -41,6 +41,8 @@ export type {
   AuthorizeRequest,
   ListAccessibleOptions,
   ResourceState,
+  UsageReceipt,
+  UsageRecord,
   ValidationOutcome,
 } from "./resources.js";
 export {

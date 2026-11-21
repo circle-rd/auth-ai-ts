@@ -339,3 +339,127 @@ describe("resources.invalidate", () => {
     expect(idp.requests).toHaveLength(0);
   });
 });
+
+const EVENT_ID = "0123456789abcdef".repeat(4);
+
+const RECEIPT = {
+  usage: {
+    id: "u-1",
+    resourceId: RESOURCE_ID,
+    requestId: EVENT_ID,
+    occurredAt: "2026-11-18T10:00:00.000Z",
+  },
+  replayed: false,
+};
+
+function usageRecord(override: Record<string, unknown> = {}) {
+  return {
+    subjectId: "user-1",
+    clientId: "gateway",
+    resourceId: RESOURCE_ID,
+    resourceUri: "llm://acme/gpt-x",
+    requestId: EVENT_ID,
+    occurredAt: new Date(),
+    usageSource: "provider",
+    costUsd: "0.0042",
+    promptTokens: 120,
+    completionTokens: 30,
+    totalTokens: 150,
+    ...override,
+  } as Parameters<MachineApi["resources"]["recordUsage"]>[0];
+}
+
+describe("resources.recordUsage", () => {
+  it("sends the event with the usage scope", async () => {
+    idp.apiHandler = () => jsonResponse(RECEIPT, 201);
+    const receipt = await api.resources.recordUsage(usageRecord());
+    expect(receipt.replayed).toBe(false);
+    expect(receipt.usage.id).toBe("u-1");
+    const request = lastApiRequest();
+    expect(request.url.pathname).toBe("/api/internal/gateway/usage");
+    const body = JSON.parse(request.body ?? "") as Record<string, unknown>;
+    expect(body).toMatchObject({
+      usageSource: "provider",
+      costUsd: "0.0042",
+      promptTokens: 120,
+      requestId: EVENT_ID,
+    });
+    expect(String(body["occurredAt"])).toMatch(/Z$/);
+    expect(idp.requestsTo("/token")[0]?.form.get("scope")).toBe(
+      "resources:usage:write",
+    );
+  });
+
+  it("sends explicit nulls for an unsupported provider", async () => {
+    idp.apiHandler = () => jsonResponse(RECEIPT, 201);
+    await api.resources.recordUsage(
+      usageRecord({
+        usageSource: "unsupported",
+        costUsd: undefined,
+        promptTokens: undefined,
+        completionTokens: undefined,
+        totalTokens: undefined,
+      }),
+    );
+    const body = JSON.parse(lastApiRequest().body ?? "") as Record<
+      string,
+      unknown
+    >;
+    expect(body["usageSource"]).toBe("unsupported");
+    for (const member of [
+      "costUsd",
+      "promptTokens",
+      "completionTokens",
+      "totalTokens",
+    ])
+      expect(body[member]).toBeNull();
+  });
+
+  it("reports a replayed event", async () => {
+    idp.apiHandler = () => jsonResponse({ ...RECEIPT, replayed: true });
+    expect((await api.resources.recordUsage(usageRecord())).replayed).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    [403, "RES_011"],
+    [409, "RES_012"],
+  ])("raises API_001 on a %i refusal (%s)", async (status, code) => {
+    idp.apiHandler = () =>
+      jsonResponse({ error: { code, message: "no" } }, status);
+    const err = await rejection(api.resources.recordUsage(usageRecord()));
+    expect(err.code).toBe("API_001");
+  });
+
+  it("raises API_002 on an unexpected answer", async () => {
+    idp.apiHandler = () => jsonResponse({ usage: "stored" }, 201);
+    const err = await rejection(api.resources.recordUsage(usageRecord()));
+    expect(err.code).toBe("API_002");
+  });
+
+  it.each([
+    ["an empty subject", { subjectId: "" }],
+    ["an empty client", { clientId: "" }],
+    ["a resource id that is not a UUID", { resourceId: "not-a-uuid" }],
+    ["a short resource URI", { resourceUri: "x" }],
+    ["a short event id", { requestId: "short" }],
+    ["an uppercase event id", { requestId: EVENT_ID.toUpperCase() }],
+    ["a stale event", { occurredAt: new Date(Date.now() - 31 * 86_400_000) }],
+    ["a future event", { occurredAt: new Date(Date.now() + 600_000) }],
+    ["an invalid date", { occurredAt: new Date(Number.NaN) }],
+    ["provider usage without a cost", { costUsd: undefined }],
+    ["a negative cost", { costUsd: "-1" }],
+    ["an exponent cost", { costUsd: "1e3" }],
+    ["a leading-zero cost", { costUsd: "007" }],
+    ["unsupported usage with a cost", { usageSource: "unsupported" }],
+    ["a negative token count", { promptTokens: -1 }],
+    ["an unknown source", { usageSource: "other" }],
+  ])("refuses %s before any request", async (_name, override) => {
+    const err = await rejection(
+      api.resources.recordUsage(usageRecord(override)),
+    );
+    expect(err.code).toBe("CFG_001");
+    expect(idp.requests).toHaveLength(0);
+  });
+});
