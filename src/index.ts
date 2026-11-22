@@ -76,3 +76,25 @@ export type {
   WalletTransactionType,
 } from "./wallet.js";
 export { WALLET_SELF_SCOPE } from "./config.js";
+export { RESOURCE_SELF_SCOPE } from "./config.js";
+export {
+  ResourceSharingClient,
+  grantSchema,
+  resourceSchema,
+} from "./sharing.js";
+export type {
+  Catalogue,
+  CatalogueApplication,
+  CreateGrantInput,
+  CreateResourceInput,
+  DeletedResource,
+  Grant,
+  ListUserAccessibleOptions,
+  MemberApplication,
+  Organization,
+  Resource,
+  ResourceAudience,
+  UpdateResourceInput,
+  ValidationRequest,
+} from "./sharing.js";
+export type { AccessibleResource } from "./resource-types.js";

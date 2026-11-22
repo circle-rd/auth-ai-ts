@@ -24,7 +24,7 @@ export interface JsonHttpOptions {
 }
 
 export interface ApiRequest<T> {
-  readonly method: "GET" | "POST";
+  readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Path below the base URL; segments must already be URL-encoded. */
   readonly path: string;
   /** Key passed to the token supplier: a machine scope, or an audience. */
@@ -51,9 +51,12 @@ export class JsonHttp {
     }
     if (!response.ok) throw await this.#toError(response);
 
-    const parsed = request.schema.safeParse(
-      await response.json().catch(() => undefined),
-    );
+    // A 204 has no body: the schema decides whether `undefined` is acceptable.
+    const body =
+      response.status === 204
+        ? undefined
+        : await response.json().catch(() => undefined);
+    const parsed = request.schema.safeParse(body);
     if (!parsed.success) {
       throw ERR.API_002(undefined, { cause: parsed.error });
     }

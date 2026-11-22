@@ -1,6 +1,14 @@
 import { z } from "zod";
-import { ERR } from "../errors.js";
 import type { JsonHttp } from "../http.js";
+import {
+  RESOURCE_SCHEME_PATTERN,
+  accessKindSchema,
+  accessibleResourceSchema,
+  ownerTypeSchema,
+  resourceStatusSchema,
+} from "../resource-types.js";
+import type { AccessibleResource } from "../resource-types.js";
+import { parseInput } from "../validation.js";
 
 const AUTHORIZE_SCOPE = "resources:authorize";
 const VALIDATE_SCOPE = "resources:validate";
@@ -9,23 +17,6 @@ const FUTURE_TOLERANCE_MS = 5 * 60_000;
 const PAST_WINDOW_MS = 30 * 24 * 60 * 60_000;
 const GATEWAY_PATH = "/api/internal/gateway";
 const BASE_PATH = `${GATEWAY_PATH}/resources`;
-
-const SCHEME_PATTERN = /^[a-z][a-z0-9]{0,49}$/;
-
-const ownerTypeSchema = z.enum(["user", "application"]);
-const accessKindSchema = z.enum(["owner", "grant"]);
-const grantSubjectTypeSchema = z.enum([
-  "user",
-  "organization",
-  "plan",
-  "everyone",
-]);
-const resourceStatusSchema = z.enum([
-  "pending_validation",
-  "validation_failed",
-  "validated",
-  "disabled",
-]);
 
 const authorizeInputSchema = z
   .object({
@@ -41,7 +32,7 @@ const authorizeInputSchema = z
 const accessibleInputSchema = z
   .object({
     subjectId: z.string().min(1).max(256),
-    scheme: z.string().regex(SCHEME_PATTERN).optional(),
+    scheme: z.string().regex(RESOURCE_SCHEME_PATTERN).optional(),
   })
   .strict();
 
@@ -134,20 +125,6 @@ const authorizeDecisionSchema = z.discriminatedUnion("decision", [
   }),
 ]);
 
-const accessibleResourceSchema = z.object({
-  resourceId: z.string(),
-  resourceUri: z.string(),
-  scheme: z.string(),
-  displayName: z.string(),
-  applicationId: z.string(),
-  applicationSlug: z.string(),
-  applicationName: z.string(),
-  ownerType: ownerTypeSchema,
-  ownerId: z.string(),
-  accessKind: accessKindSchema,
-  grantSubjectType: grantSubjectTypeSchema.optional(),
-});
-
 const resourceStateSchema = z.object({
   id: z.string(),
   uri: z.string(),
@@ -156,7 +133,7 @@ const resourceStateSchema = z.object({
 });
 
 export type AuthorizeDecision = z.infer<typeof authorizeDecisionSchema>;
-export type AccessibleResource = z.infer<typeof accessibleResourceSchema>;
+export type { AccessibleResource };
 export type ResourceState = z.infer<typeof resourceStateSchema>;
 export type UsageReceipt = z.infer<typeof usageReceiptSchema>;
 
@@ -206,19 +183,6 @@ export interface UsageRecord {
   readonly promptTokens?: number | null;
   readonly completionTokens?: number | null;
   readonly totalTokens?: number | null;
-}
-
-function invalid(what: string, error: z.ZodError): never {
-  const issues = error.issues
-    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-    .join("; ");
-  throw ERR.CFG_001(`Invalid ${what}: ${issues}`, { cause: error });
-}
-
-function parseInput<T>(what: string, schema: z.ZodType<T>, input: unknown): T {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) invalid(what, parsed.error);
-  return parsed.data;
 }
 
 function resourceId(id: string): string {

@@ -12,6 +12,31 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
+### Added
+
+- **`user.resources`** (class `ResourceSharingClient`) is the signed-in user's self-service
+  client for resource sharing: list, read, declare, update and delete the user's own
+  resources; request validation; list, create and revoke grants; list the resources the user
+  may access; and read the resource catalogue and the user's organizations and applications.
+  Every input is validated with Zod before any request (`CFG_001`); ids must be UUIDs, schemes
+  match `^[a-z][a-z0-9]{0,49}$`, and a grant takes either a subject id or a subject e-mail,
+  never both, with a future `expiresAt`. The client uses the user's token for the
+  auth-service audience with the `resources:self:manage` scope.
+- **`resourceSharing`** on `createAuthClient` adds `resources:self:manage` (exported as
+  `RESOURCE_SELF_SCOPE`) to the sign-in scopes and the issuer to the requested audiences,
+  without duplicates and alongside `gatewayUrl`.
+- **`verifyResourceEvent`** (`@circle-rd/auth-ai/server`) verifies an auth-service
+  resource webhook from its `X-Auth-Service-Signature` header: an HMAC-SHA256 digest of
+  `<timestamp>.<raw body>`. The timestamp is bounded (300 seconds by default) and the
+  function returns the typed `ResourceEvent` (`resource.grant.created` and
+  `resource.grant.revoked`). A missing or malformed header, a stale timestamp or a bad
+  signature is `REQ_001`; an empty secret or an invalid tolerance is `CFG_001`. It uses
+  Web Crypto and returns a `Promise`, so the server entry stays usable on edge runtimes.
+- The HTTP client behind the REST clients now sends `PUT`, `PATCH` and `DELETE` and accepts
+  `204 No Content` answers.
+- Guides: the resource-sharing guide documents the self-service client, `resourceSharing` and
+  webhook verification, and the gateway guide states that listings and calls are decided by
+  auth-service entitlements (ownership, grants and application membership).
 
 ## [0.4.0] - 2026-11-17
 

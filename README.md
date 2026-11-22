@@ -114,6 +114,11 @@ app.get("/api/models", { preHandler: requireAuth(handlers) }, async (request) =>
   they can reach, and report the validation or loss of ownership of a resource
   (`validate`, `invalidate`); report what a provider billed for a shared resource
   (`recordUsage`, idempotent).
+- Self-service client for the signed-in user (`resourceSharing: true`): list,
+  declare, update and delete their resources, request validation, manage
+  grants, list accessible resources and read the catalogue.
+- Verify auth-service resource webhooks: HMAC signature, bounded timestamp and a
+  typed `ResourceEvent` (`verifyResourceEvent`).
 
 **Frontend**
 

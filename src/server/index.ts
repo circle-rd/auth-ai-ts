@@ -55,3 +55,14 @@ export type {
   ProtectedResourceMetadata,
   ProtectedResourceMetadataOptions,
 } from "./protected-resource.js";
+export {
+  resourceEventSchema,
+  resourceWebhookEventTypeSchema,
+  verifyResourceEvent,
+} from "./webhooks.js";
+export type {
+  ResourceEvent,
+  ResourceEventHeaders,
+  ResourceWebhookEventType,
+  VerifyResourceEventOptions,
+} from "./webhooks.js";
