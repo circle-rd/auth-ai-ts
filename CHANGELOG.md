@@ -12,7 +12,12 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-11-18
+
+## [0.4.0] - 2026-11-17
+
+Aligns the SDK with auth-service resource sharing (generic resource registry, grants,
+validation, LiteLLM entitlements). The new machine calls need an auth-service with
+`RESOURCE_SHARING_ENABLED`.
 
 ### Added
 
@@ -25,15 +30,6 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
   `occurredAt` is a `Date` at most five minutes ahead and 30 days back, `costUsd` is a plain
   decimal required for `provider` usage, and `unsupported` usage carries no cost and no tokens.
   Reads stay with auth-service.
-
-## [0.4.0] - 2026-11-17
-
-Aligns the SDK with auth-service resource sharing (generic resource registry, grants,
-validation, LiteLLM entitlements). The new machine calls need an auth-service with
-`RESOURCE_SHARING_ENABLED`.
-
-### Added
-
 - **`machine.resources`** (`@circle-rd/auth-ai/server`, class `ResourcesApi`): `authorize`
   asks whether a user may use a resource (`resources:authorize`) and returns a `deny` or an
   `allow` with `resourceId`, `resourceUri`, `applicationSlug`, `ownerType`, `ownerId` and
