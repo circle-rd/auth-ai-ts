@@ -87,11 +87,11 @@ async function rejection(promise: Promise<unknown>): Promise<AuthAiError> {
   return err as AuthAiError;
 }
 
-describe("user.resources.list", () => {
+describe("user.resources.listOwned", () => {
   it("returns the user's resources with their grant count", async () => {
     idp.apiHandler = () =>
       jsonResponse({ resources: [{ ...RESOURCE, grantCount: 2 }] });
-    const resources = await ai.forUser("user-sub").resources.list();
+    const resources = await ai.forUser("user-sub").resources.listOwned();
     expect(resources[0]?.id).toBe(RESOURCE_ID);
     const request = lastApiRequest();
     expect(request.method).toBe("GET");
@@ -102,7 +102,7 @@ describe("user.resources.list", () => {
 
   it("flags an unexpected answer", async () => {
     idp.apiHandler = () => jsonResponse({ resources: [{ id: "x" }] });
-    expect((await rejection(ai.forUser("u").resources.list())).code).toBe(
+    expect((await rejection(ai.forUser("u").resources.listOwned())).code).toBe(
       "API_002",
     );
   });

@@ -17,7 +17,7 @@ export type {
   PermissionAction,
   UserInfoClaims,
 } from "./claims.js";
-export { AuthAiError, ERR } from "./errors.js";
+export { AuthAiError, ERR, isAuthAiErrorCode } from "./errors.js";
 export type {
   AuthAiErrorCode,
   AuthAiErrorDetails,
@@ -36,6 +36,8 @@ export type {
   GrantStore,
 } from "./grants.js";
 export type { IntrospectionResult } from "./introspection.js";
+export { sessionUserSchema, toSessionUser } from "./session-user.js";
+export type { SessionUser } from "./session-user.js";
 export type {
   ClientCredentialsOptions,
   LoginHandshake,

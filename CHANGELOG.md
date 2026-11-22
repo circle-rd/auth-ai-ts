@@ -12,7 +12,19 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
+### Changed
+
+- **`ConsumptionApi` renamed for parity with the Rust and Python SDKs**:
+  `machine.consumption.list(userId)` is now `listAggregates(userId)` and
+  `machine.consumption.get(userId, key)` is now `getAggregate(userId, key)`.
+- **`ResourceSharingClient.list()` is now `listOwned()`**, the name the Rust and Python SDKs
+  already use for the resources the user owns.
+
 ### Added
+
+- **`isAuthAiErrorCode`**, **`sessionUserSchema`**, **`toSessionUser`** and the type
+  **`SessionUser`** are exported from the package root, so the TS root entry point matches
+  the Rust and Python ones. `@circle-rd/auth-ai/web` keeps exporting them.
 
 - **`user.resources`** (class `ResourceSharingClient`) is the signed-in user's self-service
   client for resource sharing: list, read, declare, update and delete the user's own

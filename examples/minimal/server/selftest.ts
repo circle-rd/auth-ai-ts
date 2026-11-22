@@ -248,7 +248,10 @@ export async function runSelfTest(
       value: 1,
       idempotencyKey: usageSessionId,
     });
-    const stored = await machine.consumption.get(userId, "selftest.calls");
+    const stored = await machine.consumption.getAggregate(
+      userId,
+      "selftest.calls",
+    );
     return { reported, storedTotal: stored.total };
   });
 

@@ -280,12 +280,12 @@ describe("consumption", () => {
               },
             ],
           });
-    expect(await api.consumption.list("u1")).toHaveLength(1);
+    expect(await api.consumption.listAggregates("u1")).toHaveLength(1);
     expect(idp.requestsTo("/token").at(-1)?.form.get("scope")).toBe(
       "consumption:read",
     );
     expect(lastApiRequest().url.pathname).toBe("/api/app/consumption/users/u1");
-    expect((await api.consumption.get("u1", "docs")).total).toBe("12");
+    expect((await api.consumption.getAggregate("u1", "docs")).total).toBe("12");
     expect(lastApiRequest().url.pathname).toBe(
       "/api/app/consumption/users/u1/docs",
     );
@@ -299,7 +299,7 @@ describe("consumption", () => {
         },
         404,
       );
-    const err = await rejection(api.consumption.get("u1", "ghost"));
+    const err = await rejection(api.consumption.getAggregate("u1", "ghost"));
     expect(err.details).toEqual({ status: 404, apiCode: "CONS_003" });
   });
 });

@@ -318,7 +318,7 @@ export class ResourceSharingClient {
   }
 
   /** The resources the user owns, with their active grant count. */
-  async list(): Promise<Resource[]> {
+  async listOwned(): Promise<Resource[]> {
     const { resources } = await this.#http.request({
       method: "GET",
       path: RESOURCES_PATH,
