@@ -86,7 +86,7 @@ export class ConsumptionApi {
   }
 
   /** Every running total of a user. */
-  async list(userId: string): Promise<ConsumptionAggregate[]> {
+  async listAggregates(userId: string): Promise<ConsumptionAggregate[]> {
     const { aggregates } = await this.#http.request({
       method: "GET",
       path: this.#path(userId),
@@ -97,7 +97,10 @@ export class ConsumptionApi {
   }
 
   /** One running total; rejects (API_001, CONS_003) when the key was never reported. */
-  async get(userId: string, key: string): Promise<ConsumptionAggregate> {
+  async getAggregate(
+    userId: string,
+    key: string,
+  ): Promise<ConsumptionAggregate> {
     const { aggregate } = await this.#http.request({
       method: "GET",
       path: `${this.#path(userId)}/${encodeURIComponent(key)}`,

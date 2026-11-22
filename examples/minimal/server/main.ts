@@ -198,7 +198,7 @@ app.post("/api/consume", { preHandler: protect }, async (request, reply) => {
   const { userId } = gatewayOf(request);
   try {
     await machine.consumption.report({ userId, ...body });
-    return await machine.consumption.list(userId);
+    return await machine.consumption.listAggregates(userId);
   } catch (err) {
     return replyWithError(reply, err);
   }

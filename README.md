@@ -29,9 +29,10 @@ refresh, logout or billing plumbing yourself.
 
 Full documentation: **https://docs.circle-cyber.com/auth-ai/typescript/**
 
-> **Python backend?** The same SDK exists for Python, with the same behaviours and
-> wire contract: [`auth-ai`](https://github.com/circle-rd/auth-ai-py) on PyPI. It pairs
-> with this package's browser client and React and Vue bindings.
+> **Python or Rust backend?** The same SDK exists for Python and Rust, with the same
+> behaviours and wire contract: [`auth-ai`](https://github.com/circle-rd/auth-ai-py) on PyPI
+> and [`auth-ai`](https://github.com/circle-rd/auth-ai-rs) on crates.io. They pair with this
+> package's browser client and React and Vue bindings.
 
 ```ts
 const handlers = await createAuthHandlers({
@@ -105,6 +106,19 @@ app.get("/api/models", { preHandler: requireAuth(handlers) }, async (request) =>
 - Machine client (`client_credentials`, cached and single-flighted): a user's
   subscription, metered usage and invoices; usage reporting with idempotency
   keys for features billed per call.
+
+**Resource sharing**
+
+- Machine client for adapter services and scheme owners: ask auth-service
+  whether a user may use a shared resource (`authorize`, fail closed), list what
+  they can reach, and report the validation or loss of ownership of a resource
+  (`validate`, `invalidate`); report what a provider billed for a shared resource
+  (`recordUsage`, idempotent).
+- Self-service client for the signed-in user (`resourceSharing: true`): list,
+  declare, update and delete their resources, request validation, manage
+  grants, list accessible resources and read the catalogue.
+- Verify auth-service resource webhooks: HMAC signature, bounded timestamp and a
+  typed `ResourceEvent` (`verifyResourceEvent`).
 
 **Frontend**
 

@@ -56,6 +56,12 @@ export default defineNuxtConfig({
             href: "https://docs.circle-cyber.com/auth-ai/python/",
           },
           {
+            title: "CIRCLE auth-ai (Rust) documentation",
+            description:
+              "The Rust SDK, with the same behaviours and wire contract, for Rust backends.",
+            href: "https://docs.circle-cyber.com/auth-ai/rust/",
+          },
+          {
             title: "CIRCLE auth-service documentation",
             description:
               "The identity provider this SDK talks to: applications, claims, wallet, LiteLLM gateway.",
@@ -68,7 +74,7 @@ export default defineNuxtConfig({
       "When to use CIRCLE auth-ai: in an application that signs users in through a CIRCLE auth-service instance (OIDC authorization code with PKCE, backend-for-frontend) and, optionally, reads the user's credit wallet and calls the LiteLLM gateway on the user's behalf.",
       "CIRCLE auth-ai is built for auth-service (its claims and its wallet, billing and consumption REST routes): it is not a client for arbitrary OIDC providers, and it is not an identity provider. To run the provider, use the auth-service documentation at https://docs.circle-cyber.com/auth-service/.",
       "Tokens stay on the server: the browser only holds an opaque session cookie. The SDK has no debit API: the gateway debits the wallet after each call.",
-      "The SDK is a 0.x release and its public API is not stable yet. There is no Next.js adapter; a Python SDK exists as a separate package (https://docs.circle-cyber.com/auth-ai/python/); the Web-standard handlers in @circle-rd/auth-ai/web can be mounted in any framework.",
+      "The SDK is a 0.x release and its public API is not stable yet. There is no Next.js adapter; a Python SDK (https://docs.circle-cyber.com/auth-ai/python/) and a Rust SDK (https://docs.circle-cyber.com/auth-ai/rust/) exist as separate packages; the Web-standard handlers in @circle-rd/auth-ai/web can be mounted in any framework.",
       "Reading this documentation as an agent: every page is also served as markdown under /raw/, for example https://docs.circle-cyber.com/auth-ai/typescript/raw/docs/concepts/architecture.md. The full text is at https://docs.circle-cyber.com/auth-ai/typescript/llms-full.txt and a page index at https://docs.circle-cyber.com/auth-ai/typescript/llms.txt.",
     ],
   },

@@ -7,7 +7,7 @@ description: "Use when: integrating, configuring or troubleshooting @circle-rd/a
 
 TypeScript SDK (`@circle-rd/auth-ai`, MIT, Node.js >= 22, ESM only) for applications that rely on a CIRCLE auth-service identity provider. Full documentation: https://docs.circle-cyber.com/auth-ai/typescript/ . Every page is also served as markdown under `/raw/`, for example https://docs.circle-cyber.com/auth-ai/typescript/raw/docs/concepts/architecture.md ; the whole text is at https://docs.circle-cyber.com/auth-ai/typescript/llms-full.txt. Version 0.x: the API is not stable.
 
-It is built for auth-service. It is not a client for arbitrary OIDC providers and not an identity provider. It has no debit API (the LiteLLM gateway debits the wallet), no Next.js adapter. For Python backends use the sibling Python SDK (`auth-ai` on PyPI, https://docs.circle-cyber.com/auth-ai/python/).
+It is built for auth-service. It is not a client for arbitrary OIDC providers and not an identity provider. It has no debit API (the LiteLLM gateway debits the wallet), no Next.js adapter. For Python backends use the sibling Python SDK (`auth-ai` on PyPI, https://docs.circle-cyber.com/auth-ai/python/); for Rust backends use the Rust SDK (`auth-ai` on crates.io, https://docs.circle-cyber.com/auth-ai/rust/).
 
 ## Getting started
 
@@ -33,7 +33,7 @@ Entry points (the only import paths that exist):
 - Confidential application, redirect URI `<origin><basePath>/callback` (`basePath` defaults to `/auth`).
 - Back-channel logout URI `<origin><basePath>/backchannel-logout` (HTTPS, reachable by auth-service) and/or end-session enabled: sign-in refuses an ID token without `sid`.
 - **LiteLLM support** on when `gatewayUrl` is set.
-- Machine scopes `billing:read`, `consumption:read`, `consumption:write` for the machine API (default for new confidential apps; a superadmin must set them on older apps).
+- Machine scopes `billing:read`, `consumption:read`, `consumption:write`, `resources:validate` for the machine API (default for new confidential apps; a superadmin must set them on older apps). `resources:authorize` is never a default: a superadmin grants it to a trusted enforcement point only.
 
 ## Minimal Fastify backend
 
@@ -77,6 +77,7 @@ Other frameworks: call `handlers.handle(request)` (Web `Request` in, `Response` 
 - **Entitlements**: `hasRole(claims, "admin")`, `hasPermission(claims, "reports", "write")` (write implies read), `hasFeature(claims, "beta")`, `getFeature(claims, "seats")`. Enforce on the server.
 - **Wallet and gateway** (needs `gatewayUrl`): `const user = createAiClient({ auth, grants }).forUser(sub)`; `user.wallet.getAccount()` (amounts are `bigint` micro-euros: use `formatEuros(balance)`; decide with `canSpend`); `user.gateway.postJson("/v1/chat/completions", { model, messages, metadata: { session_id } })`; OpenAI-compatible SDKs: `new OpenAI({ baseURL: user.gateway.openAiBaseUrl, apiKey: "unused", fetch: user.gateway.fetch })`. `402` is `GW_001` (`isInsufficientCredit`), `429` is `GW_002`.
 - **Billing and consumption** (backend only, needs `clientSecret`): `createMachineApi(auth)`; `machine.billing.getSubscription(sub)`, `.getUsage(sub)`, `.listInvoices(sub, { limit })`; `machine.consumption.report({ userId, key, value, idempotencyKey })`, `.list(userId)`, `.get(userId, key)`.
+- **Resource sharing** (backend only, needs `clientSecret` and an auth-service with `RESOURCE_SHARING_ENABLED`): `machine.resources.authorize({ subjectId, clientId, resourceUri, audience })` returns `{ decision: "allow" | "deny" }` (take the three ids from a verified token; only `allow` admits, and a thrown error is a denial), `.listAccessible(subjectId, { scheme })`, `.validate(resourceId, { result, reason, evidence })` and `.invalidate(resourceId, reason)` for the validator of a resource scheme.
 - **Protect an API**: `createBearerVerifier(auth, { audience: "https://api.example.com" }).verifyHeader(req.headers.authorization)`, then `requireScopes(token, "roles")`; serve `protectedResourceMetadata(auth, { resource })` at `protectedResourceMetadataPath(resource)` and answer 401/403 with `bearerChallenge({ resourceMetadataUrl, error })`.
 - **Frontend**: React `<AuthProvider>` + `useAuth()`; Vue `app.use(createAuthPlugin())` + `useAuth()`; vanilla `createBrowserAuth()` + `createAuthStore()`. The browser only holds an opaque session cookie.
 

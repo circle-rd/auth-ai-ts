@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SCOPES,
+  RESOURCE_SELF_SCOPE,
   WALLET_SELF_SCOPE,
   parseAuthClientConfig,
 } from "./config.js";
@@ -31,6 +32,7 @@ describe("parseAuthClientConfig", () => {
     expect(config.clockToleranceSeconds).toBe(5);
     expect(config.timeoutMs).toBe(10_000);
     expect(config.clientSecret).toBeUndefined();
+    expect(config.resourceSharing).toBe(false);
   });
 
   it("accepts an http redirect URI on loopback only", () => {
@@ -126,5 +128,39 @@ describe("gatewayUrl", () => {
       parseAuthClientConfig({ ...valid, gatewayUrl: "http://localhost:4000" })
         .gatewayUrl,
     ).toBe("http://localhost:4000");
+  });
+});
+
+describe("resourceSharing", () => {
+  it("adds the self-service scope and the auth-service audience", () => {
+    const config = parseAuthClientConfig({ ...valid, resourceSharing: true });
+    expect(config.scopes).toEqual([...DEFAULT_SCOPES, RESOURCE_SELF_SCOPE]);
+    expect(config.resources).toEqual([valid.issuer]);
+  });
+
+  it("combines with the gateway without duplicating the issuer", () => {
+    const config = parseAuthClientConfig({
+      ...valid,
+      gatewayUrl: "https://llm.example.com",
+      resourceSharing: true,
+    });
+    expect(config.scopes).toEqual([
+      ...DEFAULT_SCOPES,
+      WALLET_SELF_SCOPE,
+      RESOURCE_SELF_SCOPE,
+    ]);
+    expect(config.resources).toEqual(["https://llm.example.com", valid.issuer]);
+  });
+
+  it("leaves the resolved config alone when it is off", () => {
+    const config = parseAuthClientConfig(valid);
+    expect(config.scopes).not.toContain(RESOURCE_SELF_SCOPE);
+    expect(config.resources).toEqual([]);
+  });
+
+  it.each(["yes", 1])("rejects the non-boolean %j", (value) => {
+    expect(rejection({ ...valid, resourceSharing: value as never }).code).toBe(
+      "CFG_001",
+    );
   });
 });

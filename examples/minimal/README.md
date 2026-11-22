@@ -12,7 +12,7 @@ token or secret, to the server log.
 - Confidential application at `https://<host>`, with **LiteLLM support** on.
 - Redirect URI `https://<host>/auth/callback`, post-logout URI `https://<host>/auth/logout/callback`.
 - Back-channel logout URI `https://<host>/auth/backchannel-logout`.
-- Machine scopes (superadmin): `billing:read`, `consumption:read`, `consumption:write`.
+- Machine scopes `billing:read`, `consumption:read`, `consumption:write` (defaults of a new confidential application; a superadmin sets them on an older one).
 
 ## Run
 

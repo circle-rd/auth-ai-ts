@@ -34,6 +34,17 @@ export type {
   ConsumptionReport,
   ConsumptionResult,
 } from "./consumption.js";
+export { ResourcesApi } from "./resources.js";
+export type {
+  AccessibleResource,
+  AuthorizeDecision,
+  AuthorizeRequest,
+  ListAccessibleOptions,
+  ResourceState,
+  UsageReceipt,
+  UsageRecord,
+  ValidationOutcome,
+} from "./resources.js";
 export {
   bearerChallenge,
   protectedResourceMetadata,
@@ -44,3 +55,14 @@ export type {
   ProtectedResourceMetadata,
   ProtectedResourceMetadataOptions,
 } from "./protected-resource.js";
+export {
+  resourceEventSchema,
+  resourceWebhookEventTypeSchema,
+  verifyResourceEvent,
+} from "./webhooks.js";
+export type {
+  ResourceEvent,
+  ResourceEventHeaders,
+  ResourceWebhookEventType,
+  VerifyResourceEventOptions,
+} from "./webhooks.js";

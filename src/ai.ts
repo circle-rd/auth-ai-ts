@@ -4,6 +4,7 @@ import { GatewayClient } from "./gateway.js";
 import type { GatewayTokens } from "./gateway.js";
 import type { GrantManager } from "./grants.js";
 import { JsonHttp } from "./http.js";
+import { ResourceSharingClient } from "./sharing.js";
 import { WalletClient } from "./wallet.js";
 
 type AiAuth = Pick<AuthClient, "config" | "fetch">;
@@ -15,9 +16,10 @@ export interface AiClientOptions {
   readonly grants: AiGrants;
 }
 
-/** What an application does for one signed-in user: read the wallet, call the gateway. */
+/** What an application does for one signed-in user: wallet, resources, gateway. */
 export class UserAi {
   readonly wallet: WalletClient;
+  readonly resources: ResourceSharingClient;
   readonly #auth: AiAuth;
   readonly #gatewayTokens: GatewayTokens | undefined;
   #gateway: GatewayClient | undefined;
@@ -33,18 +35,17 @@ export class UserAi {
 
     // A user has a single wallet audience, so the supplier ignores the key.
     const walletTokens = tokensFor(config.issuer);
-    this.wallet = new WalletClient(
-      new JsonHttp({
-        baseUrl: config.issuer,
-        fetch: auth.fetch,
-        timeoutMs: config.timeoutMs,
-        tokens: {
-          getToken: () => walletTokens.getToken(),
-          invalidate: () => walletTokens.invalidate(),
-        },
-      }),
-      config.issuer,
-    );
+    const issuerHttp = new JsonHttp({
+      baseUrl: config.issuer,
+      fetch: auth.fetch,
+      timeoutMs: config.timeoutMs,
+      tokens: {
+        getToken: () => walletTokens.getToken(),
+        invalidate: () => walletTokens.invalidate(),
+      },
+    });
+    this.wallet = new WalletClient(issuerHttp, config.issuer);
+    this.resources = new ResourceSharingClient(issuerHttp);
     this.#gatewayTokens = config.gatewayUrl
       ? tokensFor(config.gatewayUrl)
       : undefined;

@@ -16,6 +16,9 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 // Scope that lets a user token read the user's own wallet.
 export const WALLET_SELF_SCOPE = "wallet:self:read";
 
+// Scope that lets an application act for a user on their own shared resources.
+export const RESOURCE_SELF_SCOPE = "resources:self:manage";
+
 const issuerSchema = z.url({ protocol: /^https$/ }).refine(
   (value) => {
     const url = new URL(value);
@@ -64,6 +67,8 @@ const authClientConfigShape = z.object({
   resources: z.array(z.url()).default([]),
   // Public URL of the LiteLLM gateway: turns on the gateway and wallet audiences.
   gatewayUrl: gatewayUrlSchema.optional(),
+  // Ask for the resource-sharing scope and the auth-service audience at sign-in.
+  resourceSharing: z.boolean().default(false),
   clockToleranceSeconds: z.number().int().min(0).max(300).default(5),
   timeoutMs: z.number().int().positive().default(10_000),
 });
@@ -71,17 +76,26 @@ const authClientConfigShape = z.object({
 /**
  * With a gateway, the sign-in also asks for the audiences of the gateway and
  * of auth-service (which serves the wallet) and for the wallet scope: this is
- * what the application's "LiteLLM support" switch authorises.
+ * what the application's "LiteLLM support" switch authorises. With
+ * `resourceSharing`, it asks for auth-service and the self-service resource
+ * scope, so the user's own resources can be managed.
  */
 export const authClientConfigSchema = authClientConfigShape.transform(
   (config) => {
-    if (!config.gatewayUrl) return config;
+    const scopes = [...config.scopes];
+    const resources = [...config.resources];
+    if (config.gatewayUrl) {
+      scopes.push(WALLET_SELF_SCOPE);
+      resources.push(config.gatewayUrl, config.issuer);
+    }
+    if (config.resourceSharing) {
+      scopes.push(RESOURCE_SELF_SCOPE);
+      resources.push(config.issuer);
+    }
     return {
       ...config,
-      scopes: [...new Set([...config.scopes, WALLET_SELF_SCOPE])],
-      resources: [
-        ...new Set([...config.resources, config.gatewayUrl, config.issuer]),
-      ],
+      scopes: [...new Set(scopes)],
+      resources: [...new Set(resources)],
     };
   },
 );
