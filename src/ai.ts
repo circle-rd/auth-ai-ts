@@ -4,6 +4,7 @@ import { GatewayClient } from "./gateway.js";
 import type { GatewayTokens } from "./gateway.js";
 import type { GrantManager } from "./grants.js";
 import { JsonHttp } from "./http.js";
+import { OrganizationsClient } from "./organizations.js";
 import { ResourceSharingClient } from "./sharing.js";
 import { WalletClient } from "./wallet.js";
 
@@ -16,10 +17,11 @@ export interface AiClientOptions {
   readonly grants: AiGrants;
 }
 
-/** What an application does for one signed-in user: wallet, resources, gateway. */
+/** What an application does for one signed-in user: wallet, resources, teams, gateway. */
 export class UserAi {
   readonly wallet: WalletClient;
   readonly resources: ResourceSharingClient;
+  readonly organizations: OrganizationsClient;
   readonly #auth: AiAuth;
   readonly #gatewayTokens: GatewayTokens | undefined;
   #gateway: GatewayClient | undefined;
@@ -46,6 +48,7 @@ export class UserAi {
     });
     this.wallet = new WalletClient(issuerHttp, config.issuer);
     this.resources = new ResourceSharingClient(issuerHttp);
+    this.organizations = new OrganizationsClient(issuerHttp);
     this.#gatewayTokens = config.gatewayUrl
       ? tokensFor(config.gatewayUrl)
       : undefined;

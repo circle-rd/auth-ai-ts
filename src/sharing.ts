@@ -186,15 +186,6 @@ export const grantSchema = z.looseObject({
   createdAt: isoDateTime,
 });
 
-const organizationSchema = z.looseObject({
-  id: z.string(),
-  name: z.string(),
-  slug: z.string().nullish(),
-  logo: z.string().nullish(),
-  role: z.string(),
-  createdAt: isoDateTime,
-});
-
 const memberApplicationSchema = z.looseObject({
   id: z.string(),
   name: z.string(),
@@ -231,7 +222,6 @@ const grantResponseSchema = z.object({ grant: grantSchema });
 
 export type Resource = z.infer<typeof resourceSchema>;
 export type Grant = z.infer<typeof grantSchema>;
-export type Organization = z.infer<typeof organizationSchema>;
 export type MemberApplication = z.infer<typeof memberApplicationSchema>;
 export type CatalogueApplication = z.infer<typeof catalogueApplicationSchema>;
 export type Catalogue = z.infer<typeof catalogueSchema>;
@@ -304,17 +294,6 @@ export class ResourceSharingClient {
       schema: z.object({ applications: z.array(memberApplicationSchema) }),
     });
     return applications;
-  }
-
-  /** The organizations the user belongs to, for an organization audience. */
-  async listOrganizations(): Promise<Organization[]> {
-    const { organizations } = await this.#http.request({
-      method: "GET",
-      path: `${USER_PATH}/organizations`,
-      scope: SCOPE_KEY,
-      schema: z.object({ organizations: z.array(organizationSchema) }),
-    });
-    return organizations;
   }
 
   /** The resources the user owns, with their active grant count. */
