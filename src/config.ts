@@ -19,6 +19,9 @@ export const WALLET_SELF_SCOPE = "wallet:self:read";
 // Scope that lets an application act for a user on their own shared resources.
 export const RESOURCE_SELF_SCOPE = "resources:self:manage";
 
+// Scope that lets an application create and manage a user's own teams.
+export const ORGANIZATION_SELF_SCOPE = "organizations:self:manage";
+
 const issuerSchema = z.url({ protocol: /^https$/ }).refine(
   (value) => {
     const url = new URL(value);
@@ -69,6 +72,8 @@ const authClientConfigShape = z.object({
   gatewayUrl: gatewayUrlSchema.optional(),
   // Ask for the resource-sharing scope and the auth-service audience at sign-in.
   resourceSharing: z.boolean().default(false),
+  // Ask for the team-management scope and the auth-service audience at sign-in.
+  teamManagement: z.boolean().default(false),
   clockToleranceSeconds: z.number().int().min(0).max(300).default(5),
   timeoutMs: z.number().int().positive().default(10_000),
 });
@@ -78,7 +83,8 @@ const authClientConfigShape = z.object({
  * of auth-service (which serves the wallet) and for the wallet scope: this is
  * what the application's "LiteLLM support" switch authorises. With
  * `resourceSharing`, it asks for auth-service and the self-service resource
- * scope, so the user's own resources can be managed.
+ * scope, so the user's own resources can be managed. `teamManagement` does the
+ * same for the self-service team scope.
  */
 export const authClientConfigSchema = authClientConfigShape.transform(
   (config) => {
@@ -90,6 +96,10 @@ export const authClientConfigSchema = authClientConfigShape.transform(
     }
     if (config.resourceSharing) {
       scopes.push(RESOURCE_SELF_SCOPE);
+      resources.push(config.issuer);
+    }
+    if (config.teamManagement) {
+      scopes.push(ORGANIZATION_SELF_SCOPE);
       resources.push(config.issuer);
     }
     return {

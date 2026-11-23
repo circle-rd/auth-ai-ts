@@ -79,6 +79,18 @@ export type {
 } from "./wallet.js";
 export { WALLET_SELF_SCOPE } from "./config.js";
 export { RESOURCE_SELF_SCOPE } from "./config.js";
+export { ORGANIZATION_SELF_SCOPE } from "./config.js";
+export {
+  OrganizationsClient,
+  invitationTokenSchema,
+  organizationSchema,
+} from "./organizations.js";
+export type {
+  CreateOrganizationInput,
+  InvitationToken,
+  ListOrganizationsOptions,
+  Organization,
+} from "./organizations.js";
 export {
   ResourceSharingClient,
   grantSchema,
@@ -93,7 +105,6 @@ export type {
   Grant,
   ListUserAccessibleOptions,
   MemberApplication,
-  Organization,
   Resource,
   ResourceAudience,
   UpdateResourceInput,

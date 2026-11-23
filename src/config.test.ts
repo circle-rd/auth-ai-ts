@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SCOPES,
+  ORGANIZATION_SELF_SCOPE,
   RESOURCE_SELF_SCOPE,
   WALLET_SELF_SCOPE,
   parseAuthClientConfig,
@@ -160,6 +161,40 @@ describe("resourceSharing", () => {
 
   it.each(["yes", 1])("rejects the non-boolean %j", (value) => {
     expect(rejection({ ...valid, resourceSharing: value as never }).code).toBe(
+      "CFG_001",
+    );
+  });
+});
+
+describe("teamManagement", () => {
+  it("adds the team scope and the auth-service audience", () => {
+    const config = parseAuthClientConfig({ ...valid, teamManagement: true });
+    expect(config.scopes).toEqual([...DEFAULT_SCOPES, ORGANIZATION_SELF_SCOPE]);
+    expect(config.resources).toEqual([valid.issuer]);
+  });
+
+  it("does not ask for teams by default", () => {
+    const config = parseAuthClientConfig(valid);
+    expect(config.teamManagement).toBe(false);
+    expect(config.scopes).not.toContain(ORGANIZATION_SELF_SCOPE);
+  });
+
+  it("combines with resource sharing without duplicating the issuer", () => {
+    const config = parseAuthClientConfig({
+      ...valid,
+      resourceSharing: true,
+      teamManagement: true,
+    });
+    expect(config.scopes).toEqual([
+      ...DEFAULT_SCOPES,
+      RESOURCE_SELF_SCOPE,
+      ORGANIZATION_SELF_SCOPE,
+    ]);
+    expect(config.resources).toEqual([valid.issuer]);
+  });
+
+  it.each(["yes", 1])("rejects the non-boolean %j", (value) => {
+    expect(rejection({ ...valid, teamManagement: value as never }).code).toBe(
       "CFG_001",
     );
   });

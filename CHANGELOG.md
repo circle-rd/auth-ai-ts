@@ -10,7 +10,9 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 ([CONTRIBUTING.md](CONTRIBUTING.md#2-versioning-and-breaking-changes)) there is no
 `Deprecated` section: incompatible changes go straight to `Removed` and bump the version.
 
-## [Unreleased]
+## [0.5.0] - 2026-11-23
+
+Adds self-service teams and aligns the self-service clients with auth-service 0.3.0.
 
 ### Changed
 
@@ -19,6 +21,10 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
   `machine.consumption.get(userId, key)` is now `getAggregate(userId, key)`.
 - **`ResourceSharingClient.list()` is now `listOwned()`**, the name the Rust and Python SDKs
   already use for the resources the user owns.
+- **`ResourceSharingClient.get()` is now `getResource()`**, the name the Python and Rust SDKs
+  use as `get_resource`. The bare `list` and `get` are not used for listings and lookups:
+  `list` is a Python builtin, so every SDK names them after their noun (`listOrganizations`,
+  `getResource`, `listOwned`, `listAggregates`, `getAggregate`).
 
 ### Added
 
@@ -29,7 +35,7 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 - **`user.resources`** (class `ResourceSharingClient`) is the signed-in user's self-service
   client for resource sharing: list, read, declare, update and delete the user's own
   resources; request validation; list, create and revoke grants; list the resources the user
-  may access; and read the resource catalogue and the user's organizations and applications.
+  may access; and read the resource catalogue and the user's applications.
   Every input is validated with Zod before any request (`CFG_001`); ids must be UUIDs, schemes
   match `^[a-z][a-z0-9]{0,49}$`, and a grant takes either a subject id or a subject e-mail,
   never both, with a future `expiresAt`. The client uses the user's token for the
@@ -44,11 +50,34 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
   `resource.grant.revoked`). A missing or malformed header, a stale timestamp or a bad
   signature is `REQ_001`; an empty secret or an invalid tolerance is `CFG_001`. It uses
   Web Crypto and returns a `Promise`, so the server entry stays usable on edge runtimes.
+- **`user.organizations`** (class `OrganizationsClient`) is the signed-in user's client for
+  the teams auth-service hosts for them: `listOrganizations({ team? })`, `create({ name, logo? })`,
+  `join(token)`, `leave(organizationId)`, `createInvitationToken(organizationId)` and
+  `revokeInvitationToken(organizationId)`. Inputs are validated with Zod before any request
+  (`CFG_001`); reserved fields (`domain`, `slug`, `autoEnrollEnabled`, `team`) are rejected,
+  and the slug is derived by auth-service. An auth-service refusal is an `API_001` whose
+  `details.apiCode` carries the `ORG_*` code. `organizationSchema` and
+  `invitationTokenSchema` are exported with the types `Organization`, `InvitationToken`,
+  `CreateOrganizationInput` and `ListOrganizationsOptions`.
+- **`teamManagement`** on `createAuthClient` adds `organizations:self:manage` (exported as
+  `ORGANIZATION_SELF_SCOPE`) to the sign-in scopes and the issuer to the requested
+  audiences, without duplicates and alongside `gatewayUrl` and `resourceSharing`.
+- **`Organization`** now carries `team`, and `slug` is never nullish: a team has no domain
+  and the server derives the slug.
 - The HTTP client behind the REST clients now sends `PUT`, `PATCH` and `DELETE` and accepts
   `204 No Content` answers.
 - Guides: the resource-sharing guide documents the self-service client, `resourceSharing` and
   webhook verification, and the gateway guide states that listings and calls are decided by
-  auth-service entitlements (ownership, grants and application membership).
+  auth-service entitlements (ownership, grants and application membership). A new teams guide
+  documents `OrganizationsClient`, invitation tokens and the `ORG_*` codes.
+
+### Removed
+
+- **`user.resources.listOrganizations()`**: it now lives on
+  `user.organizations.listOrganizations({ team? })`. This is a breaking change, as the project does not
+  keep compatibility shims; update callers in the same release. The listing endpoint accepts
+  either `resources:self:manage` or `organizations:self:manage`, so an application with
+  `resourceSharing` alone can still read the user's organizations.
 
 ## [0.4.0] - 2026-11-17
 
