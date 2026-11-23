@@ -60,10 +60,12 @@ async function rejection(promise: Promise<unknown>): Promise<AuthAiError> {
   return err as AuthAiError;
 }
 
-describe("user.organizations.list", () => {
+describe("user.organizations.listOrganizations", () => {
   it("returns the user's organizations", async () => {
     idp.apiHandler = () => jsonResponse({ organizations: [ORGANIZATION] });
-    const organizations = await ai.forUser("u").organizations.list();
+    const organizations = await ai
+      .forUser("u")
+      .organizations.listOrganizations();
     expect(organizations[0]).toMatchObject({
       id: ORGANIZATION_ID,
       team: true,
@@ -81,13 +83,15 @@ describe("user.organizations.list", () => {
     [false, "false"],
   ])("filters teams with team=%j", async (team, expected) => {
     idp.apiHandler = () => jsonResponse({ organizations: [] });
-    await ai.forUser("u").organizations.list({ team });
+    await ai.forUser("u").organizations.listOrganizations({ team });
     expect(lastApiRequest().url.searchParams.get("team")).toBe(expected);
   });
 
   it("rejects an unknown option before any request", async () => {
     const err = await rejection(
-      ai.forUser("u").organizations.list({ type: "team" } as never),
+      ai
+        .forUser("u")
+        .organizations.listOrganizations({ type: "team" } as never),
     );
     expect(err.code).toBe("CFG_001");
     expect(idp.requests).toHaveLength(0);

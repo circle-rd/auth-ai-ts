@@ -307,7 +307,7 @@ export class ResourceSharingClient {
     return resources;
   }
 
-  async get(resourceId: string): Promise<Resource> {
+  async getResource(resourceId: string): Promise<Resource> {
     const id = identifier(resourceId, "resource id");
     const { resource } = await this.#http.request({
       method: "GET",

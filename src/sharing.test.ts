@@ -108,10 +108,12 @@ describe("user.resources.listOwned", () => {
   });
 });
 
-describe("user.resources.get", () => {
+describe("user.resources.getResource", () => {
   it("fetches one resource", async () => {
     idp.apiHandler = () => jsonResponse({ resource: RESOURCE });
-    expect(await ai.forUser("u").resources.get(RESOURCE_ID)).toMatchObject({
+    expect(
+      await ai.forUser("u").resources.getResource(RESOURCE_ID),
+    ).toMatchObject({
       id: RESOURCE_ID,
       uri: "acme://project-1",
     });
@@ -122,7 +124,7 @@ describe("user.resources.get", () => {
 
   it("rejects an id that is not a UUID before any request", async () => {
     expect(
-      (await rejection(ai.forUser("u").resources.get("../admin"))).code,
+      (await rejection(ai.forUser("u").resources.getResource("../admin"))).code,
     ).toBe("CFG_001");
     expect(idp.requests).toHaveLength(0);
   });

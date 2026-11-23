@@ -21,6 +21,10 @@ Adds self-service teams and aligns the self-service clients with auth-service 0.
   `machine.consumption.get(userId, key)` is now `getAggregate(userId, key)`.
 - **`ResourceSharingClient.list()` is now `listOwned()`**, the name the Rust and Python SDKs
   already use for the resources the user owns.
+- **`ResourceSharingClient.get()` is now `getResource()`**, the name the Python and Rust SDKs
+  use as `get_resource`. The bare `list` and `get` are not used for listings and lookups:
+  `list` is a Python builtin, so every SDK names them after their noun (`listOrganizations`,
+  `getResource`, `listOwned`, `listAggregates`, `getAggregate`).
 
 ### Added
 
@@ -47,7 +51,7 @@ Adds self-service teams and aligns the self-service clients with auth-service 0.
   signature is `REQ_001`; an empty secret or an invalid tolerance is `CFG_001`. It uses
   Web Crypto and returns a `Promise`, so the server entry stays usable on edge runtimes.
 - **`user.organizations`** (class `OrganizationsClient`) is the signed-in user's client for
-  the teams auth-service hosts for them: `list({ team? })`, `create({ name, logo? })`,
+  the teams auth-service hosts for them: `listOrganizations({ team? })`, `create({ name, logo? })`,
   `join(token)`, `leave(organizationId)`, `createInvitationToken(organizationId)` and
   `revokeInvitationToken(organizationId)`. Inputs are validated with Zod before any request
   (`CFG_001`); reserved fields (`domain`, `slug`, `autoEnrollEnabled`, `team`) are rejected,
@@ -70,7 +74,7 @@ Adds self-service teams and aligns the self-service clients with auth-service 0.
 ### Removed
 
 - **`user.resources.listOrganizations()`**: it now lives on
-  `user.organizations.list({ team? })`. This is a breaking change, as the project does not
+  `user.organizations.listOrganizations({ team? })`. This is a breaking change, as the project does not
   keep compatibility shims; update callers in the same release. The listing endpoint accepts
   either `resources:self:manage` or `organizations:self:manage`, so an application with
   `resourceSharing` alone can still read the user's organizations.

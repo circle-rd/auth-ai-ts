@@ -98,7 +98,9 @@ export class OrganizationsClient {
   }
 
   /** The organizations the user belongs to, optionally filtered by team flag. */
-  async list(options: ListOrganizationsOptions = {}): Promise<Organization[]> {
+  async listOrganizations(
+    options: ListOrganizationsOptions = {},
+  ): Promise<Organization[]> {
     const { team } = parseInput("list options", listOptionsSchema, options);
     const query: Record<string, string> = {};
     if (team !== undefined) query["team"] = String(team);
