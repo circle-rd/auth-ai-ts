@@ -40,6 +40,7 @@ export type {
   AuthorizeDecision,
   AuthorizeRequest,
   ListAccessibleOptions,
+  ResourcePermission,
   ResourceState,
   UsageReceipt,
   UsageRecord,
@@ -61,8 +62,10 @@ export {
   verifyResourceEvent,
 } from "./webhooks.js";
 export type {
+  ResourceDeletedEvent,
   ResourceEvent,
   ResourceEventHeaders,
+  ResourceGrantEvent,
   ResourceWebhookEventType,
   VerifyResourceEventOptions,
 } from "./webhooks.js";

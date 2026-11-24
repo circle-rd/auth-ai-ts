@@ -1,150 +1,33 @@
 import { z } from "zod";
 import type { JsonHttp } from "./http.js";
+import type { audienceSchema } from "./sharing-inputs.js";
 import {
-  RESOURCE_SCHEME_PATTERN,
+  accessibleQuerySchema,
+  bulkShareInputSchema,
+  createInputSchema,
+  grantInputSchema,
+  grantUpdateInputSchema,
+  updateInputSchema,
+} from "./sharing-inputs.js";
+import {
   accessibleResourceSchema,
   grantSubjectTypeSchema,
   ownerTypeSchema,
+  resourcePermissionSchema,
   resourceStatusSchema,
 } from "./resource-types.js";
-import type { AccessibleResource } from "./resource-types.js";
+import type {
+  AccessibleResource,
+  ResourcePermission,
+} from "./resource-types.js";
 import { parseInput } from "./validation.js";
 
 const USER_PATH = "/api/user";
 const RESOURCES_PATH = `${USER_PATH}/resources`;
 // The user token is minted for the auth-service audience: the key is ignored.
 const SCOPE_KEY = "resources";
-const METADATA_MAX_BYTES = 4096;
 
 const isoDateTime = z.iso.datetime();
-
-function isSmallMetadata(value: Record<string, unknown>): boolean {
-  try {
-    return JSON.stringify(value).length <= METADATA_MAX_BYTES;
-  } catch {
-    return false;
-  }
-}
-
-const metadataSchema = z
-  .record(z.string().max(64), z.unknown())
-  .refine(isSmallMetadata, { message: "metadata is too large" });
-
-const emailSchema = z.string().trim().pipe(z.email().max(320));
-
-const audienceSchema = z.union([
-  z.object({ type: z.literal("everyone") }).strict(),
-  z.object({ type: z.literal("plan"), planId: z.uuid() }).strict(),
-  z
-    .object({
-      type: z.literal("organization"),
-      organizationId: z.string().trim().min(1).max(128),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("user"),
-      userId: z.string().trim().min(1).max(128),
-    })
-    .strict(),
-  z.object({ type: z.literal("user"), email: emailSchema }).strict(),
-]);
-
-const createInputSchema = z
-  .object({
-    applicationId: z.uuid(),
-    scheme: z.string().regex(RESOURCE_SCHEME_PATTERN),
-    locator: z.string().trim().min(1).max(255).optional(),
-    displayName: z.string().trim().min(1).max(200),
-    metadata: metadataSchema.optional(),
-    audience: audienceSchema.optional(),
-  })
-  .strict();
-
-const updateInputSchema = z
-  .object({
-    displayName: z.string().trim().min(1).max(200).optional(),
-    listed: z.boolean().optional(),
-    metadata: metadataSchema.optional(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      value.displayName !== undefined ||
-      value.listed !== undefined ||
-      value.metadata !== undefined,
-    { message: "at least one field is required" },
-  );
-
-const grantInputSchema = z
-  .object({
-    subjectType: grantSubjectTypeSchema,
-    subjectId: z.string().trim().min(1).max(256).nullable().optional(),
-    subjectEmail: emailSchema.optional(),
-    expiresAt: z.date().nullable().optional(),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (
-      value.expiresAt !== undefined &&
-      value.expiresAt !== null &&
-      value.expiresAt.getTime() <= Date.now()
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["expiresAt"],
-        message: "must be in the future",
-      });
-    }
-    if (value.subjectType === "everyone") {
-      if (value.subjectId !== undefined && value.subjectId !== null) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["subjectId"],
-          message: "everyone has no subject id",
-        });
-      }
-      if (value.subjectEmail !== undefined) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["subjectEmail"],
-          message: "everyone has no e-mail",
-        });
-      }
-      return;
-    }
-    if (value.subjectType === "user" && value.subjectEmail !== undefined) {
-      if (value.subjectId !== undefined && value.subjectId !== null) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["subjectId"],
-          message: "give either a subject id or a subject e-mail",
-        });
-      }
-      return;
-    }
-    if (value.subjectEmail !== undefined) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["subjectEmail"],
-        message: "only a user grant accepts a subject e-mail",
-      });
-    }
-    if (!value.subjectId) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["subjectId"],
-        message: "a subject id is required",
-      });
-    }
-  });
-
-const accessibleQuerySchema = z
-  .object({
-    scheme: z.string().regex(RESOURCE_SCHEME_PATTERN).optional(),
-    applicationId: z.uuid().optional(),
-  })
-  .strict();
 
 export const resourceSchema = z.looseObject({
   id: z.string(),
@@ -153,6 +36,8 @@ export const resourceSchema = z.looseObject({
   applicationName: z.string().nullish(),
   scheme: z.string(),
   schemeDisplayName: z.string().nullish(),
+  /** The levels the scheme supports; present on single-resource answers. */
+  permissions: z.array(resourcePermissionSchema).optional(),
   locator: z.string().nullish(),
   uri: z.string(),
   displayName: z.string(),
@@ -179,7 +64,7 @@ export const grantSchema = z.looseObject({
   subjectType: grantSubjectTypeSchema,
   subjectId: z.string().nullable(),
   subjectLabel: z.string().nullish(),
-  permission: z.string(),
+  permission: resourcePermissionSchema,
   expiresAt: isoDateTime.nullable(),
   revokedAt: isoDateTime.nullish(),
   createdBy: z.string(),
@@ -212,9 +97,14 @@ const validationRequestSchema = z.object({
   validationCommand: z.string().nullable(),
 });
 
-const deletedResourceSchema = z.object({
-  resource: resourceSchema,
-  removed: z.boolean(),
+const bulkShareResultSchema = z.object({
+  results: z.array(
+    z.object({
+      resourceId: z.string(),
+      grantId: z.string().nullable(),
+      code: z.string().nullable(),
+    }),
+  ),
 });
 
 const resourceResponseSchema = z.object({ resource: resourceSchema });
@@ -226,7 +116,9 @@ export type MemberApplication = z.infer<typeof memberApplicationSchema>;
 export type CatalogueApplication = z.infer<typeof catalogueApplicationSchema>;
 export type Catalogue = z.infer<typeof catalogueSchema>;
 export type ValidationRequest = z.infer<typeof validationRequestSchema>;
-export type DeletedResource = z.infer<typeof deletedResourceSchema>;
+export type BulkShareResult = z.infer<
+  typeof bulkShareResultSchema
+>["results"][number];
 export type ResourceAudience = z.infer<typeof audienceSchema>;
 
 export interface CreateResourceInput {
@@ -249,12 +141,31 @@ export interface UpdateResourceInput {
 }
 
 export interface CreateGrantInput {
-  readonly subjectType: "user" | "organization" | "plan" | "everyone";
+  /**
+   * `application` shares the resource with another application; its `subjectId`
+   * is that application's slug. A scheme an application defines is shared
+   * inside that application only.
+   */
+  readonly subjectType:
+    "user" | "organization" | "plan" | "everyone" | "application";
   readonly subjectId?: string | null;
   /** Only a user grant accepts an e-mail, resolved among active members. */
   readonly subjectEmail?: string;
+  /** `read` by default; `write` also covers `read`. A scheme may support `read` only. */
+  readonly permission?: ResourcePermission;
   /** Timezone-aware, in the future. */
   readonly expiresAt?: Date | null;
+}
+
+export interface ShareWithApplicationInput {
+  /** The application slug that receives the resources. */
+  readonly applicationSlug: string;
+  readonly permission?: ResourcePermission;
+  readonly expiresAt?: Date | null;
+}
+
+export interface UpdateGrantInput {
+  readonly permission: ResourcePermission;
 }
 
 export interface ListUserAccessibleOptions {
@@ -363,14 +274,19 @@ export class ResourceSharingClient {
     return resource;
   }
 
-  async delete(resourceId: string): Promise<DeletedResource> {
+  /**
+   * Deletes a resource for good, with its grants and invitations. Refused with
+   * `RES_019` while the relay still serves the model.
+   */
+  async delete(resourceId: string): Promise<Resource> {
     const id = identifier(resourceId, "resource id");
-    return this.#http.request({
+    const { resource } = await this.#http.request({
       method: "DELETE",
       path: resourcePath(id),
       scope: SCOPE_KEY,
-      schema: deletedResourceSchema,
+      schema: resourceResponseSchema,
     });
+    return resource;
   }
 
   /** Asks the scheme's validator to check ownership of a pending resource. */
@@ -410,6 +326,7 @@ export class ResourceSharingClient {
     if (data.subjectEmail !== undefined) {
       body["subjectEmail"] = data.subjectEmail;
     }
+    if (data.permission !== undefined) body["permission"] = data.permission;
     if (data.expiresAt !== undefined) {
       body["expiresAt"] = data.expiresAt?.toISOString() ?? null;
     }
@@ -423,6 +340,7 @@ export class ResourceSharingClient {
     return grant;
   }
 
+  /** Revokes an active grant: access ends at once and the row stays as history. */
   async revokeGrant(resourceId: string, grantId: string): Promise<Grant> {
     const id = identifier(resourceId, "resource id");
     const target = identifier(grantId, "grant id");
@@ -435,7 +353,81 @@ export class ResourceSharingClient {
     return grant;
   }
 
-  /** Every validated resource the user may use; a listing filter, not an admission. */
+  /**
+   * Deletes a grant that is already revoked or expired. An active grant is
+   * refused with `RES_020`: revoke it first.
+   */
+  async deleteGrant(resourceId: string, grantId: string): Promise<void> {
+    const id = identifier(resourceId, "resource id");
+    const target = identifier(grantId, "grant id");
+    await this.#http.request({
+      method: "DELETE",
+      path: `${resourcePath(id)}/grants/${encodeURIComponent(target)}`,
+      scope: SCOPE_KEY,
+      query: { permanent: "true" },
+      schema: z.undefined(),
+    });
+  }
+
+  /**
+   * Changes the level of an active grant without revoking it. A level the
+   * resource's scheme does not support is refused with `RES_014`, and an
+   * inactive grant with `RES_015`.
+   */
+  async updateGrant(
+    resourceId: string,
+    grantId: string,
+    input: UpdateGrantInput,
+  ): Promise<Grant> {
+    const id = identifier(resourceId, "resource id");
+    const target = identifier(grantId, "grant id");
+    const body = parseInput("grant update", grantUpdateInputSchema, input);
+    const { grant } = await this.#http.request({
+      method: "PATCH",
+      path: `${resourcePath(id)}/grants/${encodeURIComponent(target)}`,
+      scope: SCOPE_KEY,
+      body,
+      schema: grantResponseSchema,
+    });
+    return grant;
+  }
+
+  /**
+   * Shares up to 100 of the user's resources with one application in a single
+   * call. Each resource is checked like a single grant: a refusal is reported
+   * on its own entry (`code`) and does not stop the others.
+   */
+  async shareWithApplication(
+    resourceIds: readonly string[],
+    input: ShareWithApplicationInput,
+  ): Promise<BulkShareResult[]> {
+    const data = parseInput("resource share", bulkShareInputSchema, {
+      resourceIds,
+      ...input,
+    });
+    const { results } = await this.#http.request({
+      method: "POST",
+      path: `${USER_PATH}/resource-shares`,
+      scope: SCOPE_KEY,
+      body: {
+        resourceIds: data.resourceIds,
+        applicationSlug: data.applicationSlug,
+        ...(data.permission === undefined
+          ? {}
+          : { permission: data.permission }),
+        ...(data.expiresAt === undefined
+          ? {}
+          : { expiresAt: data.expiresAt?.toISOString() ?? null }),
+      },
+      schema: bulkShareResultSchema,
+    });
+    return results;
+  }
+
+  /**
+   * The validated resources the user may use through the calling application,
+   * each with the `permission` the user holds. A listing filter, not an admission.
+   */
   async listAccessible(
     options: ListUserAccessibleOptions = {},
   ): Promise<AccessibleResource[]> {

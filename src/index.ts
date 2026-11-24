@@ -101,13 +101,19 @@ export type {
   CatalogueApplication,
   CreateGrantInput,
   CreateResourceInput,
-  DeletedResource,
+  BulkShareResult,
   Grant,
   ListUserAccessibleOptions,
   MemberApplication,
   Resource,
   ResourceAudience,
+  ShareWithApplicationInput,
+  UpdateGrantInput,
   UpdateResourceInput,
   ValidationRequest,
 } from "./sharing.js";
-export type { AccessibleResource } from "./resource-types.js";
+export { RESOURCE_PERMISSIONS } from "./resource-types.js";
+export type {
+  AccessibleResource,
+  ResourcePermission,
+} from "./resource-types.js";
