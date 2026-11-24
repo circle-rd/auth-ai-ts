@@ -3,6 +3,7 @@ import { ERR } from "../errors.js";
 import {
   grantSubjectTypeSchema,
   ownerTypeSchema,
+  resourcePermissionSchema,
   resourceStatusSchema,
 } from "../resource-types.js";
 
@@ -14,17 +15,23 @@ const ENCODER = new TextEncoder();
 export const resourceWebhookEventTypeSchema = z.enum([
   "resource.grant.created",
   "resource.grant.revoked",
+  "resource.grant.updated",
+  "resource.deleted",
 ]);
 
 const applicationSchema = z.object({ id: z.string(), slug: z.string() });
 
-const resourceSchema = z.object({
+// `ownerId` reaches only the application that owns the resource.
+const deletedResourceSchema = z.object({
   id: z.string(),
   uri: z.string(),
   scheme: z.string(),
   displayName: z.string(),
   ownerType: ownerTypeSchema,
-  ownerId: z.string(),
+  ownerId: z.string().optional(),
+});
+
+const resourceSchema = deletedResourceSchema.extend({
   status: resourceStatusSchema,
 });
 
@@ -32,6 +39,8 @@ const grantSchema = z.object({
   id: z.string(),
   subjectType: grantSubjectTypeSchema,
   subjectId: z.string().nullable(),
+  permission: resourcePermissionSchema,
+  previousPermission: resourcePermissionSchema.nullable(),
   expiresAt: z.iso.datetime().nullable(),
 });
 
@@ -40,19 +49,40 @@ const recipientsSchema = z.object({
   allMembers: z.boolean(),
 });
 
-export const resourceEventSchema = z.object({
+const eventBase = {
   eventId: z.string(),
-  type: resourceWebhookEventTypeSchema,
   occurredAt: z.iso.datetime(),
   application: applicationSchema,
+};
+
+const resourceGrantEventSchema = z.object({
+  ...eventBase,
+  type: z.enum([
+    "resource.grant.created",
+    "resource.grant.revoked",
+    "resource.grant.updated",
+  ]),
   resource: resourceSchema,
   grant: grantSchema,
   recipients: recipientsSchema,
 });
 
+const resourceDeletedEventSchema = z.object({
+  ...eventBase,
+  type: z.literal("resource.deleted"),
+  resource: deletedResourceSchema,
+});
+
+export const resourceEventSchema = z.discriminatedUnion("type", [
+  resourceGrantEventSchema,
+  resourceDeletedEventSchema,
+]);
+
 export type ResourceWebhookEventType = z.infer<
   typeof resourceWebhookEventTypeSchema
 >;
+export type ResourceGrantEvent = z.infer<typeof resourceGrantEventSchema>;
+export type ResourceDeletedEvent = z.infer<typeof resourceDeletedEventSchema>;
 export type ResourceEvent = z.infer<typeof resourceEventSchema>;
 
 export type ResourceEventHeaders =

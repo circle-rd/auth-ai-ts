@@ -5,9 +5,13 @@ import {
   accessKindSchema,
   accessibleResourceSchema,
   ownerTypeSchema,
+  resourcePermissionSchema,
   resourceStatusSchema,
 } from "../resource-types.js";
-import type { AccessibleResource } from "../resource-types.js";
+import type {
+  AccessibleResource,
+  ResourcePermission,
+} from "../resource-types.js";
 import { parseInput } from "../validation.js";
 
 const AUTHORIZE_SCOPE = "resources:authorize";
@@ -21,9 +25,10 @@ const BASE_PATH = `${GATEWAY_PATH}/resources`;
 const authorizeInputSchema = z
   .object({
     subjectId: z.string().min(1).max(256),
-    clientId: z.string().min(1).max(256),
+    actorClientId: z.string().min(1).max(256).optional(),
     resourceUri: z.string().min(3).max(512),
     audience: z.string().min(1).max(2048),
+    permission: resourcePermissionSchema.optional(),
     requestId: z.string().min(1).max(256).optional(),
     source: z.enum(["gateway", "ssh", "external", "api"]).optional(),
   })
@@ -46,8 +51,8 @@ const validationInputSchema = z
 
 const usageInputSchema = z
   .object({
-    subjectId: z.string().min(1).max(256),
-    clientId: z.string().min(1).max(256),
+    decisionId: z.string().min(1).max(2048),
+    startedAt: z.date(),
     resourceId: z.uuid(),
     resourceUri: z.string().min(3).max(512),
     requestId: z.string().regex(/^[a-f0-9]{64}$/, "must be a trusted event id"),
@@ -116,12 +121,15 @@ const authorizeDecisionSchema = z.discriminatedUnion("decision", [
   z.object({ decision: z.literal("deny") }),
   z.object({
     decision: z.literal("allow"),
+    decisionId: z.string(),
+    expiresAt: z.iso.datetime(),
     resourceId: z.string(),
     resourceUri: z.string(),
     applicationSlug: z.string(),
     ownerType: ownerTypeSchema,
-    ownerId: z.string(),
+    ownerId: z.string().optional(),
     accessKind: accessKindSchema,
+    permission: resourcePermissionSchema,
   }),
 ]);
 
@@ -133,19 +141,24 @@ const resourceStateSchema = z.object({
 });
 
 export type AuthorizeDecision = z.infer<typeof authorizeDecisionSchema>;
-export type { AccessibleResource };
+export type { AccessibleResource, ResourcePermission };
 export type ResourceState = z.infer<typeof resourceStateSchema>;
 export type UsageReceipt = z.infer<typeof usageReceiptSchema>;
 
 export interface AuthorizeRequest {
   /** The user: the verified `sub` of the access token the caller received. */
   readonly subjectId: string;
-  /** The calling client: the verified `azp` of that token. */
-  readonly clientId: string;
+  /**
+   * The client the end user came through (the verified `azp`). It is recorded
+   * in the access log only: the application asking is the machine credential.
+   */
+  readonly actorClientId?: string;
   /** Canonical URI of the resource, `<scheme>://<locator>`. */
   readonly resourceUri: string;
   /** The audience the token was verified for. */
   readonly audience: string;
+  /** The level the request needs: `read` by default, `write` to act on the resource. */
+  readonly permission?: ResourcePermission;
   /** Correlates the access event with the caller's own request id. */
   readonly requestId?: string;
   /** Recorded in the access log; `gateway` by default. */
@@ -166,10 +179,13 @@ export interface ValidationOutcome {
 }
 
 export interface UsageRecord {
-  /** The user: the verified `sub` of the access token the caller received. */
-  readonly subjectId: string;
-  /** The calling client: the verified `azp` of that token. */
-  readonly clientId: string;
+  /**
+   * The `decisionId` of the admission that let the request through. It names the
+   * person and the application, so a usage event cannot claim either.
+   */
+  readonly decisionId: string;
+  /** When the admitted request started; it must fall within the decision's lifetime. */
+  readonly startedAt: Date;
   readonly resourceId: string;
   readonly resourceUri: string;
   /** The event's trusted identifier: 64 lowercase hex characters. */
@@ -194,8 +210,9 @@ function resourceId(id: string): string {
  * that owns a resource scheme. The decision point stays auth-service: these
  * calls ask it, they never decide.
  *
- * `resources:authorize` reaches every user and every resource of the instance,
- * so a superadmin grants it only to a trusted enforcement point. `resources:validate`
+ * `resources:authorize` is granted to an application's machine credential. Every
+ * decision is taken for that application: it sees the resources it owns and the
+ * ones shared with it, never everything a user owns. `resources:validate`
  * is granted to new confidential applications and acts only for the resource
  * schemes bound to the calling client.
  */
@@ -207,11 +224,13 @@ export class ResourcesApi {
   }
 
   /**
-   * Asks whether a user may use a resource. Take `subjectId`, `clientId` and
-   * `audience` from a token you verified, never from the request body. Anything
-   * other than `decision: "allow"` is a refusal, and so is a thrown error:
-   * fail closed. A denial carries no reason, so it cannot be used to probe.
-   * Needs `resources:authorize`.
+   * Asks whether a user may use a resource through the calling application.
+   * Take `subjectId` and `audience` from a token you verified, never from the
+   * request body; the calling application is the machine credential itself.
+   * Anything other than `decision: "allow"` is a refusal, and so is a thrown
+   * error: fail closed. A denial carries no reason, so it cannot be used to
+   * probe. An allow carries the `permission` the user holds and a short-lived
+   * `decisionId` to hand to `recordUsage`. Needs `resources:authorize`.
    */
   async authorize(request: AuthorizeRequest): Promise<AuthorizeDecision> {
     const body = parseInput("authorize request", authorizeInputSchema, request);
@@ -225,9 +244,9 @@ export class ResourcesApi {
   }
 
   /**
-   * Every validated resource a user may use, across applications. Use it to
-   * filter a listing, never as the admission of a request: call `authorize`
-   * for that. Needs `resources:authorize`.
+   * Every validated resource a user may use through the calling application.
+   * Use it to filter a listing, never as the admission of a request: call
+   * `authorize` for that. Needs `resources:authorize`.
    */
   async listAccessible(
     subjectId: string,
@@ -311,7 +330,11 @@ export class ResourcesApi {
       method: "POST",
       path: `${GATEWAY_PATH}/usage`,
       scope: USAGE_SCOPE,
-      body: { ...usage, occurredAt: usage.occurredAt.toISOString() },
+      body: {
+        ...usage,
+        startedAt: usage.startedAt.toISOString(),
+        occurredAt: usage.occurredAt.toISOString(),
+      },
       schema: usageReceiptSchema,
     });
   }

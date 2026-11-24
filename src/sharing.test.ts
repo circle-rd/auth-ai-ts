@@ -43,7 +43,7 @@ const GRANT = {
   subjectType: "user",
   subjectId: "user-2",
   subjectLabel: "Bob",
-  permission: "use",
+  permission: "read",
   expiresAt: null,
   revokedAt: null,
   createdBy: "user-1",
@@ -219,15 +219,20 @@ describe("user.resources.update", () => {
 });
 
 describe("user.resources.delete", () => {
-  it("returns the removed resource", async () => {
-    idp.apiHandler = () =>
-      jsonResponse({
-        resource: { ...RESOURCE, status: "disabled" },
-        removed: true,
-      });
+  it("deletes the resource and returns it", async () => {
+    idp.apiHandler = () => jsonResponse({ resource: RESOURCE });
     const deleted = await ai.forUser("u").resources.delete(RESOURCE_ID);
-    expect(deleted.removed).toBe(true);
-    expect(lastApiRequest().method).toBe("DELETE");
+    expect(deleted.id).toBe(RESOURCE_ID);
+    const sent = lastApiRequest();
+    expect(sent.method).toBe("DELETE");
+    expect(sent.url.pathname).toBe(`/api/user/resources/${RESOURCE_ID}`);
+  });
+
+  it("surfaces the refusal while the relay still serves the model", async () => {
+    idp.apiHandler = () =>
+      jsonResponse({ error: { code: "RES_019", message: "served" } }, 409);
+    const err = await rejection(ai.forUser("u").resources.delete(RESOURCE_ID));
+    expect(err.details).toEqual({ status: 409, apiCode: "RES_019" });
   });
 });
 
@@ -290,6 +295,35 @@ describe("user.resources grants", () => {
     });
   });
 
+  it("sends the permission only when it is given", async () => {
+    idp.apiHandler = () =>
+      jsonResponse({ grant: { ...GRANT, permission: "write" } }, 201);
+    const grant = await ai.forUser("u").resources.createGrant(RESOURCE_ID, {
+      subjectType: "user",
+      subjectId: "user-2",
+      permission: "write",
+    });
+    expect(grant.permission).toBe("write");
+    expect(JSON.parse(lastApiRequest().body ?? "")).toEqual({
+      subjectType: "user",
+      subjectId: "user-2",
+      permission: "write",
+    });
+  });
+
+  it("shares with an application named by its slug", async () => {
+    idp.apiHandler = () =>
+      jsonResponse({ grant: { ...GRANT, subjectType: "application" } }, 201);
+    await ai.forUser("u").resources.createGrant(RESOURCE_ID, {
+      subjectType: "application",
+      subjectId: "chat",
+    });
+    expect(JSON.parse(lastApiRequest().body ?? "")).toEqual({
+      subjectType: "application",
+      subjectId: "chat",
+    });
+  });
+
   it.each([
     [
       "both an id and an e-mail",
@@ -301,6 +335,15 @@ describe("user.resources grants", () => {
       { subjectType: "organization", subjectEmail: "a@b.test" },
     ],
     ["a missing subject", { subjectType: "organization" }],
+    ["an application without a slug", { subjectType: "application" }],
+    [
+      "a permission outside the closed set",
+      { subjectType: "user", subjectId: "u", permission: "admin" },
+    ],
+    [
+      "the legacy use permission",
+      { subjectType: "user", subjectId: "u", permission: "use" },
+    ],
     [
       "an expired grant",
       { subjectType: "user", subjectId: "u", expiresAt: new Date(0) },
@@ -337,6 +380,118 @@ describe("user.resources grants", () => {
     expect(sent.url.pathname).toBe(
       `/api/user/resources/${RESOURCE_ID}/grants/${GRANT_ID}`,
     );
+    expect(sent.url.searchParams.has("permanent")).toBe(false);
+  });
+
+  it("deletes a past grant for good", async () => {
+    idp.apiHandler = () => new Response(null, { status: 204 });
+    await ai.forUser("u").resources.deleteGrant(RESOURCE_ID, GRANT_ID);
+    const sent = lastApiRequest();
+    expect(sent.method).toBe("DELETE");
+    expect(sent.url.pathname).toBe(
+      `/api/user/resources/${RESOURCE_ID}/grants/${GRANT_ID}`,
+    );
+    expect(sent.url.searchParams.get("permanent")).toBe("true");
+  });
+
+  it("surfaces the refusal to delete an active grant", async () => {
+    idp.apiHandler = () =>
+      jsonResponse({ error: { code: "RES_020", message: "active" } }, 409);
+    const err = await rejection(
+      ai.forUser("u").resources.deleteGrant(RESOURCE_ID, GRANT_ID),
+    );
+    expect(err.details).toEqual({ status: 409, apiCode: "RES_020" });
+  });
+
+  it("changes the level of a grant without revoking it", async () => {
+    idp.apiHandler = () =>
+      jsonResponse({ grant: { ...GRANT, permission: "write" } });
+    const grant = await ai
+      .forUser("u")
+      .resources.updateGrant(RESOURCE_ID, GRANT_ID, { permission: "write" });
+    expect(grant.permission).toBe("write");
+    const sent = lastApiRequest();
+    expect(sent.method).toBe("PATCH");
+    expect(sent.url.pathname).toBe(
+      `/api/user/resources/${RESOURCE_ID}/grants/${GRANT_ID}`,
+    );
+    expect(JSON.parse(sent.body ?? "")).toEqual({ permission: "write" });
+  });
+
+  it.each([
+    ["an unknown level", { permission: "admin" }],
+    ["no level", {}],
+    ["an extra field", { permission: "read", expiresAt: null }],
+  ])("rejects a grant update with %s", async (_label, input) => {
+    expect(
+      (
+        await rejection(
+          ai
+            .forUser("u")
+            .resources.updateGrant(RESOURCE_ID, GRANT_ID, input as never),
+        )
+      ).code,
+    ).toBe("CFG_001");
+    expect(idp.requests).toHaveLength(0);
+  });
+});
+
+describe("user.resources.shareWithApplication", () => {
+  it("shares several resources and reports each outcome", async () => {
+    const results = [
+      { resourceId: RESOURCE_ID, grantId: GRANT_ID, code: null },
+      { resourceId: APPLICATION_ID, grantId: null, code: "RES_014" },
+    ];
+    idp.apiHandler = () => jsonResponse({ results });
+    const expiresAt = new Date(Date.now() + 86_400_000);
+    expect(
+      await ai
+        .forUser("u")
+        .resources.shareWithApplication([RESOURCE_ID, APPLICATION_ID], {
+          applicationSlug: "chat",
+          permission: "write",
+          expiresAt,
+        }),
+    ).toEqual(results);
+    const sent = lastApiRequest();
+    expect(sent.method).toBe("POST");
+    expect(sent.url.pathname).toBe("/api/user/resource-shares");
+    expect(JSON.parse(sent.body ?? "")).toEqual({
+      resourceIds: [RESOURCE_ID, APPLICATION_ID],
+      applicationSlug: "chat",
+      permission: "write",
+      expiresAt: expiresAt.toISOString(),
+    });
+  });
+
+  it.each([
+    ["no resource", [], { applicationSlug: "chat" }],
+    [
+      "more than 100 resources",
+      Array.from({ length: 101 }, () => RESOURCE_ID),
+      { applicationSlug: "chat" },
+    ],
+    ["an id that is not a UUID", ["nope"], { applicationSlug: "chat" }],
+    ["an empty slug", [RESOURCE_ID], { applicationSlug: " " }],
+    [
+      "an unknown level",
+      [RESOURCE_ID],
+      { applicationSlug: "chat", permission: "admin" },
+    ],
+    [
+      "an expired share",
+      [RESOURCE_ID],
+      { applicationSlug: "chat", expiresAt: new Date(0) },
+    ],
+  ])("rejects %s before any request", async (_label, ids, input) => {
+    expect(
+      (
+        await rejection(
+          ai.forUser("u").resources.shareWithApplication(ids, input as never),
+        )
+      ).code,
+    ).toBe("CFG_001");
+    expect(idp.requests).toHaveLength(0);
   });
 });
 
@@ -352,6 +507,7 @@ describe("user.resources.listAccessible", () => {
     ownerType: "application",
     ownerId: APPLICATION_ID,
     accessKind: "grant",
+    permission: "write",
     grantSubjectType: "plan",
   };
 
