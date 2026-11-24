@@ -12,9 +12,11 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-25
+
 Aligns the resource-sharing clients with application-scoped resources in auth-service: an
 application sees and uses the resources it owns or that were shared with it, never everything
-a user owns. This breaks 0.5.0 callers of the machine API and ships with the next minor release.
+a user owns. This breaks 0.5.0 callers of the machine API.
 
 ### Added
 
@@ -286,7 +288,10 @@ First release.
 - `__Host-` cookies, same-origin redirect targets, refused cross-site logout, URLs built
   on the registered origin, Fastify >= 5.12.6 required.
 
-[Unreleased]: https://github.com/circle-rd/auth-ai-ts/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/circle-rd/auth-ai-ts/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/circle-rd/auth-ai-ts/compare/v0.1.1...v0.1.2
