@@ -24,9 +24,25 @@ const EVENT = {
     id: "9d2a0c4e-6b7f-4a1d-8e2c-3f5b6a7c8d90",
     subjectType: "user",
     subjectId: "user-2",
+    permission: "read",
+    previousPermission: null,
     expiresAt: null,
   },
   recipients: { userIds: ["user-2"], allMembers: false },
+};
+
+const DELETED_EVENT = {
+  eventId: "5e2a0c4e-6b7f-4a1d-8e2c-3f5b6a7c8d90",
+  type: "resource.deleted",
+  occurredAt: "2026-11-18T10:05:00.000Z",
+  application: { id: "app-2", slug: "chat" },
+  resource: {
+    id: EVENT.resource.id,
+    uri: EVENT.resource.uri,
+    scheme: "llm",
+    displayName: "gpt-x",
+    ownerType: "user",
+  },
 };
 
 function signature(timestamp: number, body: string): string {
@@ -65,6 +81,50 @@ describe("verifyResourceEvent", () => {
         now: NOW,
       }),
     ).resolves.toEqual(EVENT);
+  });
+
+  it("parses a level change with the previous level", async () => {
+    const updated = {
+      ...EVENT,
+      type: "resource.grant.updated",
+      grant: {
+        ...EVENT.grant,
+        permission: "write",
+        previousPermission: "read",
+      },
+    };
+    const raw = body(updated);
+    const event = await verifyResourceEvent(headers(signature(NOW, raw)), raw, {
+      secret: SECRET,
+      now: NOW,
+    });
+    expect(event).toEqual(updated);
+  });
+
+  it("parses a deletion, which carries no grant and no owner for another application", async () => {
+    const raw = body(DELETED_EVENT);
+    const event = await verifyResourceEvent(headers(signature(NOW, raw)), raw, {
+      secret: SECRET,
+      now: NOW,
+    });
+    expect(event).toEqual(DELETED_EVENT);
+    expect(event.type).toBe("resource.deleted");
+    expect("grant" in event).toBe(false);
+  });
+
+  it("rejects a grant event without a permission", async () => {
+    const { permission: _omit, ...grant } = EVENT.grant;
+    const raw = body({ ...EVENT, grant });
+    expect(
+      (
+        await failure(
+          verifyResourceEvent(headers(signature(NOW, raw)), raw, {
+            secret: SECRET,
+            now: NOW,
+          }),
+        )
+      ).code,
+    ).toBe("REQ_001");
   });
 
   it("accepts a plain header record with any key case", async () => {

@@ -10,6 +10,56 @@ Sections, when present, appear in this order: `Added`, `Changed`, `Removed`,
 ([CONTRIBUTING.md](CONTRIBUTING.md#2-versioning-and-breaking-changes)) there is no
 `Deprecated` section: incompatible changes go straight to `Removed` and bump the version.
 
+## [Unreleased]
+
+Aligns the resource-sharing clients with application-scoped resources in auth-service: an
+application sees and uses the resources it owns or that were shared with it, never everything
+a user owns. This breaks 0.5.0 callers of the machine API and ships with the next minor release.
+
+### Added
+
+- **`permission` on grants, `read` or `write`** (closed set, exported as `RESOURCE_PERMISSIONS`
+  and the type `ResourcePermission`). `createGrant` accepts it (`read` when absent, `write`
+  covers `read`), `Grant.permission` is now typed, and `AccessibleResource.permission` carries
+  the level the user holds. An unknown value fails with `CFG_001` before any request.
+- **`user.resources.updateGrant(resourceId, grantId, { permission })`** changes the level of an
+  active grant without revoking it (`RES_014` for a level the scheme does not support,
+  `RES_015` for an inactive grant).
+- **`user.resources.deleteGrant(resourceId, grantId)`** deletes a revoked or expired grant for
+  good (`RES_020` for an active one).
+- **`user.resources.shareWithApplication(resourceIds, { applicationSlug, permission?, expiresAt? })`**
+  shares up to 100 resources with one application in a call and reports one outcome per resource.
+- **`subjectType: "application"`** on `createGrant`: `subjectId` is the application slug.
+- **`authorize({ permission })`** asks for a level (`read` by default); an `allow` answer carries
+  `permission`, `decisionId` and `expiresAt`.
+- **Webhook events `resource.grant.updated` and `resource.deleted`.** `ResourceEvent` is now a
+  union discriminated on `type`: grant events carry `grant.permission` and
+  `grant.previousPermission`; `resource.deleted` carries the resource only. New types
+  `ResourceGrantEvent` and `ResourceDeletedEvent`.
+
+### Changed
+
+- **`authorize` no longer takes `clientId`.** The application asking is the machine credential;
+  pass the client the end user came through as the optional `actorClientId`, which is recorded
+  for audit and never decides anything.
+- **`recordUsage` takes `decisionId` and `startedAt` instead of `subjectId` and `clientId`.**
+  The decision returned by `authorize` names the person and the application, so a usage event
+  can no longer claim either. `startedAt` must fall within the decision's lifetime (`RES_016`
+  otherwise).
+- **`AuthorizeDecision` and `AccessibleResource` omit `ownerId`** for an application that does
+  not own the resource.
+- **`listAccessible` is scoped to the calling application** on the machine and the user client:
+  it returns what the application owns or was granted, not everything a user can reach.
+- **`user.resources.delete()` deletes for good and returns the `Resource`** (it used to return
+  `{ resource, removed }` after disabling). It fails with `RES_019` while the relay still serves
+  the model.
+- **A user bearer token is confined to its client's application**: the self-service client
+  sees that application's resources only.
+
+### Removed
+
+- `DeletedResource`, the `removed` flag, and the `use` permission value.
+
 ## [0.5.0] - 2026-11-23
 
 Adds self-service teams and aligns the self-service clients with auth-service 0.3.0.

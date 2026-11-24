@@ -110,13 +110,15 @@ app.get("/api/models", { preHandler: requireAuth(handlers) }, async (request) =>
 **Resource sharing**
 
 - Machine client for adapter services and scheme owners: ask auth-service
-  whether a user may use a shared resource (`authorize`, fail closed), list what
-  they can reach, and report the validation or loss of ownership of a resource
+  whether a user may use a shared resource at a given level (`authorize`, fail
+  closed, scoped to the calling application), list what they can reach, and
+  report the validation or loss of ownership of a resource
   (`validate`, `invalidate`); report what a provider billed for a shared resource
-  (`recordUsage`, idempotent).
+  (`recordUsage`, idempotent, bound to the admitting decision).
 - Self-service client for the signed-in user (`resourceSharing: true`): list,
   declare, update and delete their resources, request validation, manage
-  grants, list accessible resources and read the catalogue.
+  grants (`read` or `write`, per user, organization, plan or application), list
+  accessible resources and read the catalogue.
 - Verify auth-service resource webhooks: HMAC signature, bounded timestamp and a
   typed `ResourceEvent` (`verifyResourceEvent`).
 

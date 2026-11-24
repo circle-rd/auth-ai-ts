@@ -45,47 +45,60 @@ async function rejection(promise: Promise<unknown>): Promise<AuthAiError> {
 
 const AUTHORIZE = {
   subjectId: "user-1",
-  clientId: "acme-app",
+  actorClientId: "acme-app",
   resourceUri: "llm://acme/gpt-x",
   audience: "https://llm.test",
 } as const;
 
+const ALLOW = {
+  decision: "allow",
+  decisionId: "eyJ2IjoxfQ.c2ln",
+  expiresAt: "2026-11-18T10:01:00.000Z",
+  resourceId: RESOURCE_ID,
+  resourceUri: "llm://acme/gpt-x",
+  applicationSlug: "acme",
+  ownerType: "application",
+  ownerId: "app-1",
+  accessKind: "grant",
+  permission: "read",
+} as const;
+
 describe("resources.authorize", () => {
   it("returns the admission with the decision data", async () => {
-    idp.apiHandler = () =>
-      jsonResponse({
-        decision: "allow",
-        resourceId: RESOURCE_ID,
-        resourceUri: "llm://acme/gpt-x",
-        applicationSlug: "acme",
-        ownerType: "application",
-        ownerId: "app-1",
-        accessKind: "grant",
-      });
+    idp.apiHandler = () => jsonResponse(ALLOW);
     const decision = await api.resources.authorize({
       ...AUTHORIZE,
+      permission: "write",
       requestId: "req-1",
       source: "api",
     });
-    expect(decision).toEqual({
-      decision: "allow",
-      resourceId: RESOURCE_ID,
-      resourceUri: "llm://acme/gpt-x",
-      applicationSlug: "acme",
-      ownerType: "application",
-      ownerId: "app-1",
-      accessKind: "grant",
-    });
+    expect(decision).toEqual(ALLOW);
     const request = lastApiRequest();
     expect(request.method).toBe("POST");
     expect(request.url.pathname).toBe("/api/internal/gateway/authorize");
     expect(JSON.parse(request.body ?? "")).toEqual({
       ...AUTHORIZE,
+      permission: "write",
       requestId: "req-1",
       source: "api",
     });
     expect(idp.requestsTo("/token")[0]?.form.get("scope")).toBe(
       "resources:authorize",
+    );
+  });
+
+  it("accepts an admission without an owner, as another application sees it", async () => {
+    const { ownerId: _omit, ...shared } = ALLOW;
+    idp.apiHandler = () => jsonResponse(shared);
+    const decision = await api.resources.authorize(AUTHORIZE);
+    expect(decision).toMatchObject({ decision: "allow", permission: "read" });
+    expect("ownerId" in decision).toBe(false);
+  });
+
+  it("refuses an admission with an unknown permission", async () => {
+    idp.apiHandler = () => jsonResponse({ ...ALLOW, permission: "admin" });
+    expect((await rejection(api.resources.authorize(AUTHORIZE))).code).toBe(
+      "API_002",
     );
   });
 
@@ -120,7 +133,8 @@ describe("resources.authorize", () => {
 
   it.each([
     ["an empty subject", { subjectId: "" }],
-    ["an empty client", { clientId: "" }],
+    ["an empty actor client", { actorClientId: "" }],
+    ["a permission outside the closed set", { permission: "admin" }],
     ["a too short URI", { resourceUri: "a:" }],
     ["a URI over 512 characters", { resourceUri: `llm://${"a".repeat(510)}` }],
     ["an empty audience", { audience: "" }],
@@ -136,6 +150,14 @@ describe("resources.authorize", () => {
   it("rejects a field auth-service does not know", async () => {
     const err = await rejection(
       api.resources.authorize({ ...AUTHORIZE, userId: "other" } as never),
+    );
+    expect(err.code).toBe("CFG_001");
+    expect(idp.requests).toHaveLength(0);
+  });
+
+  it("no longer takes the calling client from the request", async () => {
+    const err = await rejection(
+      api.resources.authorize({ ...AUTHORIZE, clientId: "other" } as never),
     );
     expect(err.code).toBe("CFG_001");
     expect(idp.requests).toHaveLength(0);
@@ -170,6 +192,7 @@ describe("resources.listAccessible", () => {
     ownerType: "application",
     ownerId: "app-1",
     accessKind: "grant",
+    permission: "read",
     grantSubjectType: "plan",
   };
 
@@ -354,8 +377,8 @@ const RECEIPT = {
 
 function usageRecord(override: Record<string, unknown> = {}) {
   return {
-    subjectId: "user-1",
-    clientId: "gateway",
+    decisionId: "eyJ2IjoxfQ.c2ln",
+    startedAt: new Date(Date.now() - 2_000),
     resourceId: RESOURCE_ID,
     resourceUri: "llm://acme/gpt-x",
     requestId: EVENT_ID,
@@ -379,11 +402,15 @@ describe("resources.recordUsage", () => {
     expect(request.url.pathname).toBe("/api/internal/gateway/usage");
     const body = JSON.parse(request.body ?? "") as Record<string, unknown>;
     expect(body).toMatchObject({
+      decisionId: "eyJ2IjoxfQ.c2ln",
       usageSource: "provider",
       costUsd: "0.0042",
       promptTokens: 120,
       requestId: EVENT_ID,
     });
+    expect(body).not.toHaveProperty("subjectId");
+    expect(body).not.toHaveProperty("clientId");
+    expect(String(body["startedAt"])).toMatch(/Z$/);
     expect(String(body["occurredAt"])).toMatch(/Z$/);
     expect(idp.requestsTo("/token")[0]?.form.get("scope")).toBe(
       "resources:usage:write",
@@ -439,8 +466,10 @@ describe("resources.recordUsage", () => {
   });
 
   it.each([
-    ["an empty subject", { subjectId: "" }],
-    ["an empty client", { clientId: "" }],
+    ["an empty decision id", { decisionId: "" }],
+    ["a start that is not a date", { startedAt: "now" }],
+    ["a subject the decision already names", { subjectId: "user-1" }],
+    ["a client the decision already names", { clientId: "gateway" }],
     ["a resource id that is not a UUID", { resourceId: "not-a-uuid" }],
     ["a short resource URI", { resourceUri: "x" }],
     ["a short event id", { requestId: "short" }],
